@@ -3,7 +3,7 @@ from pathlib import Path
 import sqlite3
 
 ROOT = Path(__file__).resolve().parents[1]
-DB_PATH = ROOT / 'gym531.db'
+DB_PATH = ROOT / 'money_dashboard.db'
 SCHEMA = Path(__file__).resolve().parent / 'schema.sql'
 
 with sqlite3.connect(DB_PATH) as conn:

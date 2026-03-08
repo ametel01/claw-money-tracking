@@ -1,6 +1,6 @@
 # Expenses Dashboard
 
-Mobile-friendly expenses tracker at `/expenses/` using SQLite (`gym531.db`).
+Mobile-friendly expenses tracker at `/expenses/` using SQLite (`money_dashboard.db`).
 
 ## Setup
 

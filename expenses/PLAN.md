@@ -6,7 +6,7 @@
 - `exp_import_batches`, `exp_import_rows_raw`
 - `exp_categorization_rules`
 
-`schema.sql` is idempotent and runs against `gym531.db`.
+`schema.sql` is idempotent and runs against `money_dashboard.db`.
 
 ## 2) PDF Import Pipeline (implemented in server API)
 1. Upload statement PDF to `/api/expenses/import-pdf`.

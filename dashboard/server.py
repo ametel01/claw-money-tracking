@@ -29,7 +29,7 @@ class Handler(SimpleHTTPRequestHandler):
             return {}
 
     def _run_sql(self, sql):
-        db = ROOT / "gym531.db"
+        db = ROOT / "money_dashboard.db"
         proc = subprocess.run(["sqlite3", str(db), sql], check=True, cwd=str(ROOT), capture_output=True, text=True)
         return (proc.stdout or "").strip()
 
@@ -194,7 +194,7 @@ FROM v_planned_barbell_sets p;
 """)
 
     def _exp_connect(self):
-        db = ROOT / "gym531.db"
+        db = ROOT / "money_dashboard.db"
         conn = sqlite3.connect(str(db))
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA foreign_keys = ON")

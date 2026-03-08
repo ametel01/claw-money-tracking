@@ -17,5 +17,5 @@ Open:
 
 - `expenses/` UI + schema/init
 - `dashboard/server.py` (serves expenses endpoints)
-- `gym531.db` SQLite database
+- `money_dashboard.db` SQLite database
 - `scripts/start_money_dashboard.sh`
