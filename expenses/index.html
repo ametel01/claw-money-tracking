@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Expenses Dashboard</title>
-  <link rel="stylesheet" href="/expenses/styles.css?v=20260308-1" />
+  <link rel="stylesheet" href="/expenses/styles.css?v=20260308-4" />
 </head>
 <body>
   <header class="topbar">
@@ -13,6 +13,22 @@
   </header>
 
   <main class="wrap">
+    <section class="panel">
+      <h2>Category Split</h2>
+      <div class="pie-wrap">
+        <div id="catPie" class="pie"></div>
+        <div id="catLegend" class="legend"></div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Category Spend Over Time</h2>
+      <div class="line-wrap">
+        <svg id="lineChart" viewBox="0 0 900 320" preserveAspectRatio="none"></svg>
+        <div id="lineLegend" class="legend"></div>
+      </div>
+    </section>
+
     <section class="cards" id="kpis"></section>
 
     <section class="panel">
@@ -43,10 +59,11 @@
 
     <section class="panel">
       <h2>Recent Transactions</h2>
+      <div id="monthTabs" class="tabs"></div>
       <div id="txList"></div>
     </section>
   </main>
 
-  <script src="/expenses/app.js?v=20260308-1"></script>
+  <script src="/expenses/app.js?v=20260308-4"></script>
 </body>
 </html>

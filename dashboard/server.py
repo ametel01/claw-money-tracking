@@ -484,11 +484,12 @@ FROM v_planned_barbell_sets p;
 
         # 2) Built-in smart keyword classifier
         keyword_buckets = [
-            ("Income", ["transfer from", "salary", "refund", "cashback", "interest", "received", "withdrawing savings", "depositing savings"]),
+            ("Transfer", ["withdrawing savings", "depositing savings"]),
+            ("Income", ["transfer from", "salary", "refund", "cashback", "interest", "received"]),
             ("Investment", ["pmmf placement", "investment", "money market", "mutual fund"]),
             ("Transfer", ["international transfer", "bank transfer", "transfer to", "to: alessandro metelli"]),
             ("Transport", ["grab", "uber", "taxi", "fuel", "petrol", "gas station"]),
-            ("Groceries", ["supermarket", "shopsm", "sm supermarket", "grocery", "market"]),
+            ("Groceries", ["supermarket", "sm superma", "shopsm", "sm supermarket", "sm store", "grocery", "market"]),
             ("Dining", ["cafe", "coffee", "starbucks", "restaurant", "food", "soft habit"]),
             ("Subscriptions", ["netflix", "spotify", "metal plan fee", "subscription", "claude.ai", "openai"]),
             ("Software/Cloud", ["vercel", "railway", "google cloud", "alchemy"]),
