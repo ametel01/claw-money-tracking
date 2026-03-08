@@ -1,0 +1,14 @@
+[
+  {
+    "tx_date": "2026-02-01",
+    "description": "Grocery Store",
+    "amount": -123.45,
+    "confidence": 0.9
+  },
+  {
+    "tx_date": "2026-02-02",
+    "description": "Salary",
+    "amount": 1000.0,
+    "confidence": 0.9
+  }
+]

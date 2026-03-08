@@ -1,0 +1,14 @@
+[
+  {
+    "tx_date": "2026-01-02",
+    "description": "Card payment",
+    "amount": -45.24,
+    "confidence": 0.82
+  },
+  {
+    "tx_date": "2026-01-03",
+    "description": "Salary Received",
+    "amount": 500.0,
+    "confidence": 0.82
+  }
+]

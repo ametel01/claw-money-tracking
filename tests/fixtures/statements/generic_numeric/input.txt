@@ -1,0 +1,2 @@
+01/02/2026 Grocery Store 123.45 DR
+02/02/2026 Salary 1000.00 CR

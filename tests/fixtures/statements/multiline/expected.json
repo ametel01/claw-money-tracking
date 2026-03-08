@@ -1,0 +1,14 @@
+[
+  {
+    "tx_date": "2026-02-26",
+    "description": "POS W/D SV SOFT HABIT QUEZON CITY MLIC",
+    "amount": -320.0,
+    "confidence": 0.78
+  },
+  {
+    "tx_date": "2026-02-28",
+    "description": "INTEREST PAY SYS-GEN",
+    "amount": 4.15,
+    "confidence": 0.78
+  }
+]
