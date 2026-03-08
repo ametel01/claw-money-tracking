@@ -12,7 +12,7 @@ from datetime import datetime
 import urllib.request
 
 ROOT = Path(__file__).resolve().parents[1]
-PORT = 8080
+PORT = int(os.environ.get("PORT", "8081"))
 NODE_BIN = "/Users/brunoclaw/.nvm/versions/node/v24.13.1/bin/node"
 PYTHON_BIN = "/usr/bin/python3"
 

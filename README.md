@@ -6,12 +6,13 @@ Standalone money tracking dashboard repository.
 
 ```bash
 python3 expenses/init_db.py
-python3 dashboard/server.py
+./scripts/start_money_dashboard.sh
+# or: PORT=8081 python3 dashboard/server.py
 ```
 
 Open:
 
-- http://127.0.0.1:8080/expenses/
+- http://127.0.0.1:8081/expenses/
 
 ## Included
 
