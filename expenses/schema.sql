@@ -95,10 +95,20 @@ CREATE TABLE IF NOT EXISTS exp_categorization_rules (
 );
 
 INSERT OR IGNORE INTO exp_categories(name, kind) VALUES
+  ('Uncategorized','expense'),
   ('Food','expense'),
+  ('Dining','expense'),
+  ('Groceries','expense'),
   ('Transport','expense'),
   ('Bills','expense'),
   ('Shopping','expense'),
   ('Health','expense'),
+  ('Subscriptions','expense'),
+  ('Software/Cloud','expense'),
+  ('Fitness','expense'),
+  ('Travel','expense'),
+  ('Fees','expense'),
+  ('Income','income'),
   ('Salary','income'),
-  ('Transfer','transfer');
+  ('Transfer','transfer'),
+  ('Investment','transfer');

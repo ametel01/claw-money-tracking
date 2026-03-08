@@ -1,9 +1,9 @@
-#!/bin/zsh
+#!/usr/bin/env bash
 set -euo pipefail
 
-WORKDIR="/Users/brunoclaw/source/money-dasdboard"
-PYTHON_BIN="/opt/homebrew/bin/python3"
+ROOT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+PYTHON_BIN="${PYTHON_BIN:-python3}"
 export PORT="${PORT:-8081}"
 
-cd "$WORKDIR"
+cd "$ROOT_DIR"
 exec "$PYTHON_BIN" dashboard/server.py
