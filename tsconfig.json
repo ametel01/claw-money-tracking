@@ -17,9 +17,5 @@
     "noEmit": true,
     "types": ["vite/client", "node"]
   },
-  "include": [
-    "frontend/expenses-dashboard/src/**/*.ts",
-    "frontend/expenses-dashboard/vite-env.d.ts",
-    "vite.config.ts"
-  ]
+  "include": ["frontend/src/**/*.ts", "frontend/vite-env.d.ts", "vite.config.ts"]
 }

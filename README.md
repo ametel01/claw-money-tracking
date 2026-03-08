@@ -19,7 +19,7 @@ Open:
 
 ## Included
 
-- `frontend/expenses-dashboard/` TypeScript source
+- `frontend/` TypeScript source
 - `public/expenses/` compiled dashboard assets
 - `expenses/` schema + bootstrap scripts
 - `dashboard/server.py` lean static/API server

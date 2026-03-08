@@ -1,7 +1,7 @@
 # Expenses Backend
 
 This directory now owns the SQLite schema and bootstrap scripts for the expenses
-domain. The dashboard frontend source lives in `frontend/expenses-dashboard/`
+domain. The dashboard frontend source lives in `frontend/`
 and builds into `public/expenses/`.
 
 ## Setup

@@ -3,7 +3,7 @@ import { defineConfig } from 'vite'
 
 export default defineConfig({
   base: '/expenses/',
-  root: path.resolve(__dirname, 'frontend/expenses-dashboard'),
+  root: path.resolve(__dirname, 'frontend'),
   server: {
     host: '0.0.0.0',
     port: 5173,
