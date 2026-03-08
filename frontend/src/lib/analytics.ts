@@ -17,16 +17,16 @@ import {
 } from './format'
 
 const PIE_COLORS = [
-  '#0f5bd8',
-  '#0891b2',
-  '#059669',
-  '#ea580c',
-  '#dc2626',
-  '#7c3aed',
-  '#ca8a04',
-  '#2563eb',
-  '#be123c',
-  '#475569',
+  '#c8f03c',
+  '#3a7cf0',
+  '#00cba8',
+  '#f03c5a',
+  '#f0a83c',
+  '#a03cf0',
+  '#3cf0c8',
+  '#f07a3c',
+  '#3cc8f0',
+  '#8890a0',
 ]
 const DEFAULT_COLOR = '#0f5bd8'
 

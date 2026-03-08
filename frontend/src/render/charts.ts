@@ -10,7 +10,7 @@ export function renderCategoryPie(
   segments: PieSegment[]
 ): void {
   if (segments.length === 0) {
-    pieElement.style.background = 'conic-gradient(#d8e5ff 0 360deg)'
+    pieElement.style.background = 'conic-gradient(#10161f 0 360deg)'
     legendElement.innerHTML = '<p class="empty-state">No expense data yet.</p>'
     return
   }
@@ -97,7 +97,7 @@ export function renderLineChart(
         y1: `${y}`,
         x2: `${width - right}`,
         y2: `${y}`,
-        stroke: '#dce5f4',
+        stroke: '#182030',
         'stroke-width': '1',
       })
     )
@@ -106,8 +106,8 @@ export function renderLineChart(
       x: `${left - 8}`,
       y: `${y + 4}`,
       'text-anchor': 'end',
-      'font-size': '11',
-      fill: '#5f7898',
+      'font-size': '10',
+      fill: '#2e4258',
     })
     text.textContent = Math.round(value).toLocaleString()
     svgElement.appendChild(text)
@@ -119,7 +119,7 @@ export function renderLineChart(
       y1: `${height - bottom}`,
       x2: `${width - right}`,
       y2: `${height - bottom}`,
-      stroke: '#b9cadf',
+      stroke: '#182030',
       'stroke-width': '1',
     })
   )
@@ -129,8 +129,8 @@ export function renderLineChart(
       x: `${xCoordinate(index)}`,
       y: `${height - 14}`,
       'text-anchor': 'middle',
-      'font-size': '11',
-      fill: '#5f7898',
+      'font-size': '10',
+      fill: '#2e4258',
     })
     text.textContent = label
     svgElement.appendChild(text)

@@ -14,7 +14,9 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
+    "@tailwindcss/vite": "^4.2.1",
     "@types/node": "^24.3.0",
+    "tailwindcss": "^4.2.1",
     "typescript": "^5.9.2",
     "vite": "^7.1.3"
   }
