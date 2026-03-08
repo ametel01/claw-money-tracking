@@ -22,7 +22,13 @@ def load_fixture(case_name: str) -> tuple[str, list[dict[str, object]]]:
 
 @pytest.mark.parametrize(
     ('case_name'),
-    ['generic_numeric', 'revolut', 'multiline'],
+    [
+        'generic_numeric',
+        'revolut',
+        'multiline',
+        'bpi_account_activities_redacted',
+        'revolut_usd_statement_redacted',
+    ],
 )
 def test_parse_pdf_lines_matches_fixture(case_name: str) -> None:
     service = ExpensesService(Path(__file__).resolve().parents[1])
@@ -76,3 +82,85 @@ def test_import_pdf_statement_deduplicates_fixture_rows(
         entry['amount'] for entry in expected_rows
     ]
     assert {row['currency'] for row in rows} == {'USD'}
+
+
+def test_cleanup_existing_transaction_descriptions_normalizes_legacy_bank_rows(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / 'workspace'
+    (root / 'expenses').mkdir(parents=True)
+    shutil.copy2(
+        Path(__file__).resolve().parents[1] / 'expenses' / 'schema.sql',
+        root / 'expenses' / 'schema.sql',
+    )
+
+    service = ExpensesService(root)
+    service.ensure_schema()
+
+    with service.connect() as connection:
+        account_id = connection.execute(
+            "INSERT INTO exp_accounts(name, currency) VALUES(?, ?)",
+            ('BPI 012450074240', 'PHP'),
+        ).lastrowid
+        connection.execute(
+            """
+            INSERT INTO exp_transactions(
+              account_id,
+              tx_date,
+              description,
+              amount,
+              currency,
+              amount_original,
+              amount_home,
+              source_hash
+            )
+            VALUES(?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                int(account_id),
+                '2026-02-28',
+                'INTEREST PAY SYS-GEN INTEREST PAY SYS-GEN',
+                4.15,
+                'PHP',
+                4.15,
+                4.15,
+                'legacy-interest',
+            ),
+        )
+        connection.execute(
+            """
+            INSERT INTO exp_transactions(
+              account_id,
+              tx_date,
+              description,
+              amount,
+              currency,
+              amount_original,
+              amount_home,
+              source_hash
+            )
+            VALUES(?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                int(account_id),
+                '2026-02-26',
+                'POS W/D SV SOFT HABIT QUEZON CITY MLIC POS W/D SV SOFT HABIT QUEZON CITY MLIC',
+                -320.0,
+                'PHP',
+                -320.0,
+                -320.0,
+                'legacy-soft-habit',
+            ),
+        )
+        service._cleanup_existing_transaction_descriptions(connection)
+        connection.commit()
+
+        rows = connection.execute(
+            """
+            SELECT description
+            FROM exp_transactions
+            ORDER BY id ASC
+            """
+        ).fetchall()
+
+    assert [row['description'] for row in rows] == ['Interest payment', 'Soft Habit']

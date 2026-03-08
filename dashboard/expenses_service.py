@@ -377,6 +377,7 @@ class ExpensesService:
                 VALUES('USD', 'PHP', date('now'), 58.0, 'bootstrap')
                 """
             )
+            self._run_expense_data_migrations(connection)
             connection.commit()
 
     def connect(self) -> sqlite3.Connection:
@@ -426,6 +427,15 @@ class ExpensesService:
         raise RuntimeError('failed to extract PDF text: no extractor produced output')
 
     def _parse_pdf_lines(self, lines: list[str]) -> list[ParsedExpenseTransaction]:
+        if self._looks_like_bpi_account_activities(lines):
+            return self._parse_bpi_account_activities(lines)
+
+        if self._looks_like_revolut_statement(lines):
+            return self._parse_revolut_statement(lines)
+
+        return self._parse_generic_pdf_lines(lines)
+
+    def _parse_generic_pdf_lines(self, lines: list[str]) -> list[ParsedExpenseTransaction]:
         parsed_rows: list[ParsedExpenseTransaction] = []
         current_date: str | None = None
         current_description: list[str] = []
@@ -492,6 +502,376 @@ class ExpensesService:
                 current_description = []
 
         return parsed_rows
+
+    def _looks_like_bpi_account_activities(self, lines: list[str]) -> bool:
+        return any('Account number:' in line for line in lines) and any(
+            'Counterparty' in line for line in lines
+        )
+
+    def _parse_bpi_account_activities(self, lines: list[str]) -> list[ParsedExpenseTransaction]:
+        row_start = re.compile(
+            r'^([A-Z][a-z]{2}\s+\d{1,2},\s+\d{4})\s+(.+?)\s+(-?PHP[\d,]+\.\d{2})$'
+        )
+        parsed_rows: list[ParsedExpenseTransaction] = []
+        current_row: dict[str, str | float | list[str]] | None = None
+
+        def flush_current_row() -> None:
+            nonlocal current_row
+            if not current_row:
+                return
+
+            raw_description = self._collapse_description_parts(
+                current_row['description_parts']  # type: ignore[arg-type]
+            )
+            raw_counterparty = self._collapse_description_parts(
+                current_row['counterparty_parts']  # type: ignore[arg-type]
+            )
+            description = self._normalize_local_bank_description(
+                raw_description,
+                counterparty=raw_counterparty,
+            )
+            parsed_rows.append(
+                ParsedExpenseTransaction(
+                    tx_date=current_row['tx_date'],  # type: ignore[arg-type]
+                    description=description or 'Transaction',
+                    amount=current_row['amount'],  # type: ignore[arg-type]
+                    confidence=0.96,
+                )
+            )
+            current_row = None
+
+        for raw_line in lines:
+            line = raw_line.replace('\f', '').rstrip()
+            stripped = line.strip()
+            if not stripped or self._is_bpi_noise_line(stripped):
+                continue
+
+            match = row_start.match(stripped)
+            if match:
+                flush_current_row()
+                raw_date, payload, amount_token = match.groups()
+                counterparty_part, description_part = self._extract_bpi_row_segments(payload)
+                counterparty_parts = [counterparty_part] if counterparty_part else []
+                description_parts = [description_part] if description_part else []
+
+                current_row = {
+                    'tx_date': datetime.strptime(raw_date, '%b %d, %Y').strftime('%Y-%m-%d'),
+                    'counterparty_parts': counterparty_parts,
+                    'description_parts': description_parts,
+                    'amount': self._parse_php_amount(amount_token),
+                }
+                continue
+
+            if current_row:
+                counterparty_part, description_part = self._extract_bpi_row_segments(stripped)
+                if counterparty_part:
+                    current_row['counterparty_parts'].append(counterparty_part)  # type: ignore[index]
+                if description_part:
+                    current_row['description_parts'].append(description_part)  # type: ignore[index]
+
+        flush_current_row()
+        return parsed_rows
+
+    def _looks_like_revolut_statement(self, lines: list[str]) -> bool:
+        return any('Account transactions from' in line for line in lines) and any(
+            'Revolut Ltd' in line for line in lines
+        )
+
+    def _parse_revolut_statement(self, lines: list[str]) -> list[ParsedExpenseTransaction]:
+        parsed_rows: list[ParsedExpenseTransaction] = []
+        current_header: str | None = None
+        in_transaction_section = False
+
+        def flush_current_row() -> None:
+            nonlocal current_header
+            if not current_header:
+                return
+
+            parsed_row = self._parse_revolut_transaction_header(current_header)
+            if parsed_row:
+                parsed_rows.append(parsed_row)
+            current_header = None
+
+        for raw_line in lines:
+            line = raw_line.replace('\f', '').rstrip()
+            stripped = line.strip()
+            if not stripped:
+                continue
+
+            if 'Account transactions from' in stripped:
+                in_transaction_section = True
+                continue
+            if not in_transaction_section:
+                continue
+            if self._is_revolut_noise_line(stripped):
+                continue
+
+            if re.match(r'^[A-Z][a-z]{2}\s+\d{1,2},\s+\d{4}\s+', stripped):
+                flush_current_row()
+                current_header = stripped
+                continue
+
+        flush_current_row()
+        return parsed_rows
+
+    def _parse_revolut_transaction_header(
+        self, line: str
+    ) -> ParsedExpenseTransaction | None:
+        columns = re.split(r'\s{2,}', line.strip())
+        if len(columns) < 4:
+            return None
+
+        raw_date = columns[0]
+        description = columns[1]
+        money_columns = [
+            column for column in columns[2:] if re.fullmatch(r'\$[\d,]+\.\d{2}', column)
+        ]
+        if len(money_columns) < 2:
+            return None
+
+        amount = self._parse_usd_amount(money_columns[-2])
+        normalized_description = description.lower()
+        if 'depositing savings' in normalized_description:
+            amount = -abs(amount)
+        elif self._looks_like_income(normalized_description):
+            amount = abs(amount)
+        else:
+            amount = -abs(amount)
+
+        return ParsedExpenseTransaction(
+            tx_date=datetime.strptime(raw_date, '%b %d, %Y').strftime('%Y-%m-%d'),
+            description=description.strip(),
+            amount=amount,
+            confidence=0.96,
+        )
+
+    def _is_bpi_noise_line(self, line: str) -> bool:
+        return (
+            line.startswith('Dear customer,')
+            or line.startswith('The transactions are listed below')
+            or line.startswith('Account number')
+            or line.startswith('Available balance')
+            or line.startswith('Date')
+            or line.startswith('Counterparty')
+            or line.startswith('Description')
+            or line.startswith('Amount')
+            or line.startswith('Exported date range')
+            or line.startswith('Page ')
+        )
+
+    def _is_revolut_noise_line(self, line: str) -> bool:
+        return (
+            line.startswith('USD Statement')
+            or line.startswith('Generated on ')
+            or line.startswith('Revolut Ltd')
+            or line.startswith('Date')
+            or line.startswith('Report lost or stolen card')
+            or line.startswith('+44 ')
+            or line.startswith('Get help directly in-app')
+            or line.startswith('Scan the QR code')
+            or line.startswith('© ')
+            or line.startswith('Page ')
+        )
+
+    def _extract_bpi_description_segment(self, text: str) -> str:
+        segments = [segment.strip() for segment in re.split(r'\s{2,}', text) if segment.strip()]
+        if not segments:
+            return ''
+        return re.sub(r'\s+', ' ', segments[-1]).strip()
+
+    def _extract_bpi_row_segments(self, text: str) -> tuple[str, str]:
+        segments = [segment.strip() for segment in re.split(r'\s{2,}', text) if segment.strip()]
+        if not segments:
+            return ('', '')
+        if len(segments) == 1:
+            return ('', re.sub(r'\s+', ' ', segments[0]).strip())
+        return (
+            re.sub(r'\s+', ' ', segments[0]).strip(),
+            re.sub(r'\s+', ' ', segments[-1]).strip(),
+        )
+
+    def _collapse_description_parts(self, parts: list[str]) -> str:
+        collapsed_parts: list[str] = []
+
+        for part in parts:
+            normalized = re.sub(r'\s+', ' ', part).strip()
+            if not normalized:
+                continue
+            if collapsed_parts and (
+                normalized == collapsed_parts[-1]
+                or collapsed_parts[-1].endswith(f' {normalized}')
+            ):
+                continue
+            collapsed_parts.append(normalized)
+
+        return ' '.join(collapsed_parts)[:200]
+
+    def _parse_php_amount(self, token: str) -> float:
+        amount = float(token.replace('PHP', '').replace(',', ''))
+        return amount
+
+    def _parse_usd_amount(self, token: str) -> float:
+        return float(token.replace('$', '').replace(',', ''))
+
+    def _run_expense_data_migrations(self, connection: sqlite3.Connection) -> None:
+        if self._migration_applied(connection, 'description_cleanup_v1'):
+            return
+
+        self._cleanup_existing_transaction_descriptions(connection)
+        connection.execute(
+            """
+            INSERT OR REPLACE INTO exp_meta(key, value)
+            VALUES(?, ?)
+            """,
+            ('description_cleanup_v1', datetime.now().isoformat()),
+        )
+
+    def _migration_applied(self, connection: sqlite3.Connection, key: str) -> bool:
+        row = connection.execute(
+            'SELECT 1 FROM exp_meta WHERE key = ? LIMIT 1',
+            (key,),
+        ).fetchone()
+        return row is not None
+
+    def _cleanup_existing_transaction_descriptions(
+        self, connection: sqlite3.Connection
+    ) -> None:
+        rows = connection.execute(
+            """
+            SELECT t.id, t.description, a.name AS account_name
+            FROM exp_transactions AS t
+            LEFT JOIN exp_accounts AS a ON a.id = t.account_id
+            """
+        ).fetchall()
+
+        for row in rows:
+            cleaned = self._normalize_local_bank_description(
+                row['description'] or '',
+                account_name=row['account_name'] or '',
+            )
+            if cleaned and cleaned != row['description']:
+                connection.execute(
+                    'UPDATE exp_transactions SET description = ? WHERE id = ?',
+                    (cleaned, int(row['id'])),
+                )
+
+    def _normalize_local_bank_description(
+        self,
+        description: str,
+        counterparty: str = '',
+        account_name: str = '',
+    ) -> str:
+        normalized_description = self._dedupe_repeated_phrase(description)
+        normalized_counterparty = self._dedupe_repeated_phrase(counterparty)
+        combined = ' '.join(
+            part for part in [normalized_counterparty, normalized_description] if part
+        ).strip()
+        upper_combined = combined.upper()
+        upper_description = normalized_description.upper()
+        upper_account_name = account_name.upper()
+
+        if not self._looks_like_local_bank_import(upper_combined, upper_description, upper_account_name):
+            return normalized_description
+
+        direct_replacements = [
+            ('INTEREST WITHHELD', 'Interest withheld'),
+            ('INTEREST PAY SYS-GEN', 'Interest payment'),
+            ('PMMF PLACEMENT', 'PMMF placement'),
+            ('W/D P BDO', 'BDO ATM withdrawal'),
+            ('CASH WITHDRAWAL', 'ATM withdrawal'),
+            ('SOFT HABIT', 'Soft Habit'),
+            ('SM SUPERMA', 'SM Supermarket'),
+            ('SM STORE', 'SM Store'),
+            ('STARBUCKS', 'Starbucks'),
+            ('SHOPEE', 'Shopee'),
+            ('LAZADA', 'Lazada'),
+            ('GRAB', 'Grab'),
+            ('DECATHLON', 'Decathlon'),
+            ('UNIQLO', 'Uniqlo'),
+            ('MY HEALTH', 'My Health'),
+            ('LUXENT HOT', 'Luxent Hotel'),
+            ('METROBANK MAKATI', 'Metrobank Makati'),
+            ('H&M', 'H&M'),
+        ]
+        for needle, replacement in direct_replacements:
+            if needle in upper_combined:
+                return replacement
+
+        if 'SENT VIA INSTAPAY' in upper_combined or upper_description.startswith('POB IBFT BN-'):
+            match = re.search(r'([A-Z]{3}\s+\*{4}\d{4})', upper_combined)
+            if match:
+                return f'InstaPay transfer to {match.group(1)}'
+            return 'InstaPay transfer'
+
+        cleaned = upper_description
+        cleaned = re.sub(
+            r'^(POS W/D SV|POS W/D|W/D P|SV|POS)\s+',
+            '',
+            cleaned,
+        )
+        cleaned = re.sub(r'\b(POS|ATP|MLIC|IBTW|SYS-GEN)\b', '', cleaned)
+        cleaned = re.sub(r'\s+', ' ', cleaned).strip(' -')
+        if not cleaned:
+            cleaned = upper_description
+
+        return self._smart_title_case(cleaned)
+
+    def _looks_like_local_bank_import(
+        self, combined: str, description: str, account_name: str
+    ) -> bool:
+        if any(marker in account_name for marker in ('BPI', 'BDO')):
+            return True
+
+        patterns = (
+            'POS W/D',
+            'SENT VIA INSTAPAY',
+            'POB IBFT',
+            'INTEREST WITHHELD',
+            'INTEREST PAY',
+            'W/D P BDO',
+            'PMMF PLACEMENT',
+        )
+        return any(pattern in combined or pattern in description for pattern in patterns)
+
+    def _dedupe_repeated_phrase(self, description: str) -> str:
+        normalized = re.sub(r'\s+', ' ', (description or '').strip())
+        if not normalized:
+            return ''
+
+        words = normalized.split(' ')
+        if len(words) % 2 == 0:
+            midpoint = len(words) // 2
+            if words[:midpoint] == words[midpoint:]:
+                return ' '.join(words[:midpoint])
+
+        match = re.match(r'^(.+?)\s+\1$', normalized)
+        if match:
+            return match.group(1)
+
+        return normalized
+
+    def _smart_title_case(self, text: str) -> str:
+        tokens = []
+        replacements = {
+            'Atm': 'ATM',
+            'Bdo': 'BDO',
+            'Bpi': 'BPI',
+            'Pmmf': 'PMMF',
+            'Sm': 'SM',
+            'Gxi': 'GXI',
+        }
+
+        for token in text.split(' '):
+            if not token:
+                continue
+            if '*' in token or token.isdigit():
+                tokens.append(token)
+                continue
+
+            titled = token.lower().capitalize()
+            tokens.append(replacements.get(titled, titled))
+
+        return ' '.join(tokens)
 
     def _parse_transaction_line(self, line: str) -> ParsedExpenseTransaction | None:
         numeric_date_match = re.match(

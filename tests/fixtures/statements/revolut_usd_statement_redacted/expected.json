@@ -1,0 +1,44 @@
+[
+  {
+    "tx_date": "2026-01-02",
+    "description": "Merchant Alpha",
+    "amount": -45.24,
+    "confidence": 0.96
+  },
+  {
+    "tx_date": "2026-01-05",
+    "description": "Withdrawing savings",
+    "amount": 1000.0,
+    "confidence": 0.96
+  },
+  {
+    "tx_date": "2026-01-05",
+    "description": "International transfer to Example Person",
+    "amount": -682.54,
+    "confidence": 0.96
+  },
+  {
+    "tx_date": "2026-01-09",
+    "description": "Transfer from EXAMPLE LIMITED",
+    "amount": 6500.0,
+    "confidence": 0.96
+  },
+  {
+    "tx_date": "2026-01-09",
+    "description": "Depositing savings",
+    "amount": -600.0,
+    "confidence": 0.96
+  },
+  {
+    "tx_date": "2026-01-17",
+    "description": "Cash withdrawal at Example ATM",
+    "amount": -173.67,
+    "confidence": 0.96
+  },
+  {
+    "tx_date": "2026-01-23",
+    "description": "Grab",
+    "amount": -8.8,
+    "confidence": 0.96
+  }
+]

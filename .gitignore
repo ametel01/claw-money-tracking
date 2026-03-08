@@ -4,3 +4,5 @@ dashboard/server.stdout.log
 dashboard/server.stderr.log
 imports/raw/
 node_modules/
+Account Activities.pdf
+account-statement_*.pdf

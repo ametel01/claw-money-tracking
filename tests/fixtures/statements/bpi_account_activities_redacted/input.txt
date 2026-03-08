@@ -1,0 +1,20 @@
+Exported date range
+Account number: REDACTED                                             Available balance   PHP284,113.91
+
+ Date            Counterparty        Description                                                      Amount
+
+Feb 28, 2026     INTEREST            INTEREST WITHHELD                                               -PHP0.83
+                 WITHHELD
+
+Feb 28, 2026     INTEREST PAY        INTEREST PAY SYS-GEN                                              PHP4.15
+                 SYS-GEN
+
+Feb 26, 2026     POS W/D SV SOFT     POS W/D SV SOFT HABIT                                         -PHP320.00
+                 HABIT QUEZON        QUEZON CITY MLIC
+                 CITY MLIC
+
+Feb 23, 2026     Sent via InstaPay   POB IBFT BN-20260222-                                         -PHP510.00
+                 GXI ****0000        73112150 IBTW
+
+Feb 23, 2026     POS W/D SV GRAB     POS W/D SV GRAB MAKATI ATP                                      PHP456.00
+                 MAKATI ATP

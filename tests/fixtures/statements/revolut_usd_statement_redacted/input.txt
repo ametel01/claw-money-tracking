@@ -1,0 +1,37 @@
+USD Statement
+Generated on Mar 9, 2026
+Revolut Ltd
+
+Account transactions from January 1, 2026 to February 28, 2026
+
+Date                     Description                                                                          Money out                     Money in                                 Balance
+
+Jan 2, 2026              Merchant Alpha                                                                       $45.24                                                                $124.94
+                         Revolut Rate $1.00 = 58.58 PHP (ECB rate* $1.00 = 58.94 PHP)                        2,650.00 PHP
+                         To: Merchant Alpha, Example City
+                         Card: 400000******0000
+
+Jan 5, 2026              Withdrawing savings                                                                                                $1,000.00                             $1,096.57
+
+Jan 5, 2026              International transfer to Example Person                                             $682.54                                                               $414.03
+                         Reference: Sent from Revolut
+                         Fee: $0.62                                                                           $681.92
+                                                                                                              40,000.00 PHP
+                         To: Example Person, REDACTED
+
+Jan 9, 2026              Transfer from EXAMPLE LIMITED                                                                                     $6,500.00                             $6,685.35
+                         Reference: 000021
+                         From: EXAMPLE LIMITED
+
+Jan 9, 2026              Depositing savings                                                                   $600.00                                                             $9,085.35
+
+Jan 17, 2026             Cash withdrawal at Example ATM                                                       $173.67                                                             $8,799.77
+                         Non-Revolut fee: 250.00 PHP
+                         Revolut Rate $1.00 = 59.02 PHP (ECB rate* $1.00 = 59.38 PHP)                        10,250.00 PHP
+                         To: Example ATM, Example City
+                         Card: 400000******0000
+
+Jan 23, 2026             Grab                                                                                 $8.80                                                                  $109.99
+                         Revolut Rate $1.00 = 58.82 PHP (ECB rate* $1.00 = 59.27 PHP)                         517.06 PHP
+                         To: Grab, Makati
+                         Card: 400000******0000

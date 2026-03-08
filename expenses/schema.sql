@@ -94,6 +94,12 @@ CREATE TABLE IF NOT EXISTS exp_categorization_rules (
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS exp_meta (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 INSERT OR IGNORE INTO exp_categories(name, kind) VALUES
   ('Uncategorized','expense'),
   ('Food','expense'),

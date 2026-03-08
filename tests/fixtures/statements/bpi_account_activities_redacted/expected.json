@@ -1,0 +1,32 @@
+[
+  {
+    "tx_date": "2026-02-28",
+    "description": "Interest withheld",
+    "amount": -0.83,
+    "confidence": 0.96
+  },
+  {
+    "tx_date": "2026-02-28",
+    "description": "Interest payment",
+    "amount": 4.15,
+    "confidence": 0.96
+  },
+  {
+    "tx_date": "2026-02-26",
+    "description": "Soft Habit",
+    "amount": -320.0,
+    "confidence": 0.96
+  },
+  {
+    "tx_date": "2026-02-23",
+    "description": "InstaPay transfer to GXI ****0000",
+    "amount": -510.0,
+    "confidence": 0.96
+  },
+  {
+    "tx_date": "2026-02-23",
+    "description": "Grab",
+    "amount": 456.0,
+    "confidence": 0.96
+  }
+]
