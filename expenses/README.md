@@ -1,33 +1,32 @@
-# Expenses Dashboard
+# Expenses Backend
 
-Mobile-friendly expenses tracker at `/expenses/` using SQLite (`money_dashboard.db`).
+This directory now owns the SQLite schema and bootstrap scripts for the expenses
+domain. The dashboard frontend source lives in `frontend/expenses-dashboard/`
+and builds into `public/expenses/`.
 
 ## Setup
 
-From workspace root:
+From the repository root:
 
 ```bash
+bun install
+bun run build
 python3 expenses/init_db.py
-```
-
-## Run server
-
-```bash
 python3 dashboard/server.py
 ```
 
-Then open:
-
-- `http://127.0.0.1:8080/expenses/`
-- or your existing tailnet route: `/expenses/`
+Open `http://127.0.0.1:8081/expenses/`.
 
 ## API
 
 - `GET /api/expenses/overview`
-- `GET /api/expenses/transactions?limit=40`
-- `POST /api/expenses/import-pdf` (multipart: `accountName`, `file`)
+- `GET /api/expenses/transactions?limit=400`
+- `GET /api/expenses/fx`
+- `POST /api/expenses/fx-rate`
+- `POST /api/expenses/fx-backfill`
+- `POST /api/expenses/import-pdf`
 
 ## Notes
 
-- PDF parsing currently uses `pdftotext -layout` + regex-based extraction.
-- Duplicate transaction detection uses SHA256 `source_hash` unique constraint.
+- PDF extraction uses `pdftotext -layout` first, then falls back to `pypdf`.
+- Duplicate protection uses a SHA-256 `source_hash` plus a business-key check.
