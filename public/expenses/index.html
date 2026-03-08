@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Expenses Dashboard</title>
+    <meta
+      name="description"
+      content="Fast, typed personal expense tracking dashboard backed by SQLite."
+    />
+    <script type="module" crossorigin src="/expenses/assets/expenses-dashboard.js"></script>
+    <link rel="stylesheet" crossorigin href="/expenses/assets/expenses-dashboard.css">
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="hero">
+        <div class="hero__content">
+          <p class="hero__eyebrow">Money Tracking</p>
+          <h1>Expenses Dashboard</h1>
+          <p class="hero__copy">
+            SQLite-backed statement imports, FX normalization, and lean visual summaries.
+          </p>
+        </div>
+        <div id="appStatus" class="status-line" aria-live="polite"></div>
+      </header>
+
+      <main class="dashboard">
+        <section class="panel panel--summary">
+          <div class="panel__heading">
+            <div>
+              <p class="panel__eyebrow">Overview</p>
+              <h2>Live snapshot</h2>
+            </div>
+          </div>
+          <div class="cards" id="kpis"></div>
+        </section>
+
+        <section class="panel">
+          <div class="panel__heading">
+            <div>
+              <p class="panel__eyebrow">Allocation</p>
+              <h2>Category split</h2>
+            </div>
+          </div>
+          <div class="pie-wrap">
+            <div id="catPie" class="pie" role="img" aria-label="Expense category split chart"></div>
+            <div id="catLegend" class="legend"></div>
+          </div>
+        </section>
+
+        <section class="panel panel--wide">
+          <div class="panel__heading">
+            <div>
+              <p class="panel__eyebrow">Trend</p>
+              <h2>Weekly category spend</h2>
+            </div>
+          </div>
+          <div class="line-wrap">
+            <svg id="lineChart" viewBox="0 0 900 320" preserveAspectRatio="none"></svg>
+            <div id="lineLegend" class="legend legend--compact"></div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel__heading">
+            <div>
+              <p class="panel__eyebrow">Import</p>
+              <h2>PDF statements</h2>
+            </div>
+          </div>
+          <form id="uploadForm" class="stack">
+            <label class="field">
+              <span>Account name</span>
+              <input
+                type="text"
+                id="accountName"
+                placeholder="BPI Visa"
+                autocomplete="off"
+                required
+              />
+            </label>
+            <label class="field">
+              <span>Statement PDF</span>
+              <input type="file" id="pdfFile" accept="application/pdf" required />
+            </label>
+            <button type="submit">Upload and parse</button>
+          </form>
+          <div id="importResult" class="status-line" aria-live="polite"></div>
+        </section>
+
+        <section class="panel">
+          <div class="panel__heading">
+            <div>
+              <p class="panel__eyebrow">Display</p>
+              <h2>Currency controls</h2>
+            </div>
+          </div>
+          <div class="stack">
+            <label class="field">
+              <span>Transaction display</span>
+              <select id="viewMode">
+                <option value="home">PHP normalized</option>
+                <option value="native">Native currency</option>
+                <option value="both">Both</option>
+              </select>
+            </label>
+            <form id="fxForm" class="stack">
+              <label class="field">
+                <span>USD to PHP</span>
+                <input
+                  type="number"
+                  step="0.0001"
+                  id="usdPhpRate"
+                  placeholder="58.2000"
+                  required
+                />
+              </label>
+              <button type="submit">Update USD/PHP</button>
+            </form>
+            <button id="fxBackfillBtn" type="button" class="button-secondary">
+              Backfill historical USD/PHP
+            </button>
+          </div>
+          <div id="fxResult" class="status-line" aria-live="polite"></div>
+        </section>
+
+        <section class="panel panel--wide">
+          <div class="panel__heading">
+            <div>
+              <p class="panel__eyebrow">Ledger</p>
+              <h2>Recent transactions</h2>
+            </div>
+          </div>
+          <div id="monthTabs" class="tabs" aria-label="Transaction months"></div>
+          <div id="txList" class="transaction-list"></div>
+        </section>
+      </main>
+    </div>
+
+  </body>
+</html>
