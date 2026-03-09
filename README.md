@@ -19,8 +19,8 @@ bun run start
 
 Open:
 
-- http://127.0.0.1:5173/expenses/ during `bun run dev`
-- http://127.0.0.1:8081/expenses/ during `bun run start`
+- http://127.0.0.1:5173/ during `bun run dev`
+- http://127.0.0.1:8081/ during `bun run start`
 
 ## Included
 

@@ -13,8 +13,8 @@ bun run db:init
 PORT=8081 bun run dev
 ```
 
-Open `http://127.0.0.1:5173/expenses/` in development, or run `bun run build && bun run start`
-for the built server on `http://127.0.0.1:8081/expenses/`.
+Open `http://127.0.0.1:5173/` in development, or run `bun run build && bun run start`
+for the built server on `http://127.0.0.1:8081/`.
 
 ## API
 

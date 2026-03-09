@@ -5,7 +5,7 @@ import { defineConfig } from 'vite';
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
-  base: '/expenses/',
+  base: '/',
   root: path.resolve(__dirname, 'frontend'),
   resolve: {
     alias: {
@@ -21,7 +21,7 @@ export default defineConfig({
     },
   },
   build: {
-    outDir: path.resolve(__dirname, 'public/expenses'),
+    outDir: path.resolve(__dirname, 'public'),
     emptyOutDir: true,
     target: 'es2020',
     cssCodeSplit: false,
