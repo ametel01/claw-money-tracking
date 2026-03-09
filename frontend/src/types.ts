@@ -84,6 +84,19 @@ export interface ImportRowActionResponse {
   batch: ImportBatchDetail
 }
 
+export interface CategorizationRuleRecord {
+  id: number
+  priority: number
+  matchType: string
+  pattern: string
+  categoryId: number
+  categoryName: string | null
+  accountId: number | null
+  accountName: string | null
+  active: boolean
+  createdAt: string
+}
+
 export interface BackfillFxResponse extends ApiStatusResponse {
   updated?: number
 }

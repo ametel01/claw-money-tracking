@@ -90,6 +90,19 @@ export interface ImportRowActionResult {
   batch: ImportBatchDetail
 }
 
+export interface CategorizationRuleRecord {
+  id: number
+  priority: number
+  matchType: string
+  pattern: string
+  categoryId: number
+  categoryName: string | null
+  accountId: number | null
+  accountName: string | null
+  active: boolean
+  createdAt: string
+}
+
 interface TransactionRow {
   id: number
   tx_date: string
@@ -159,6 +172,19 @@ interface ImportRowDbRecord {
   status: string
   error: string | null
   transaction_id: number | null
+  created_at: string
+}
+
+interface CategorizationRuleRow {
+  id: number
+  priority: number
+  match_type: string
+  pattern: string
+  category_id: number
+  category_name: string | null
+  account_id: number | null
+  account_name: string | null
+  active: number
   created_at: string
 }
 
@@ -430,6 +456,134 @@ export class ExpensesService {
       return {
         row: this.getImportRowOrThrow(db, rowId),
         batch: this.getImportBatchWithDb(db, row.batch_id),
+      }
+    })
+  }
+
+  listCategorizationRules(): CategorizationRuleRecord[] {
+    this.ensureSchema()
+
+    return this.withDatabase((db) => {
+      const rows = db
+        .prepare(
+          `
+          SELECT
+            r.id,
+            r.priority,
+            r.match_type,
+            r.pattern,
+            r.category_id,
+            c.name AS category_name,
+            r.account_id,
+            a.name AS account_name,
+            r.active,
+            r.created_at
+          FROM exp_categorization_rules AS r
+          INNER JOIN exp_categories AS c ON c.id = r.category_id
+          LEFT JOIN exp_accounts AS a ON a.id = r.account_id
+          WHERE r.active = 1
+          ORDER BY r.priority ASC, r.id ASC
+          `
+        )
+        .all() as CategorizationRuleRow[]
+
+      return rows.map((row) => this.mapCategorizationRuleRecord(row))
+    })
+  }
+
+  createCategorizationRuleFromTransaction(input: {
+    transactionId: number
+    categoryId: number
+    accountScoped?: boolean
+    matchType?: string
+    priority?: number
+    pattern?: string
+  }): CategorizationRuleRecord {
+    this.ensureSchema()
+
+    return this.withDatabase((db) => {
+      const transaction = db
+        .prepare(
+          `
+          SELECT id, account_id, description
+          FROM exp_transactions
+          WHERE id = ?
+          LIMIT 1
+          `
+        )
+        .get(input.transactionId) as
+        | { id: number; account_id: number; description: string | null }
+        | undefined
+
+      if (!transaction) {
+        throw new Error(`transaction ${input.transactionId} not found`)
+      }
+
+      const category = db
+        .prepare('SELECT id FROM exp_categories WHERE id = ? LIMIT 1')
+        .get(input.categoryId) as { id: number } | undefined
+      if (!category) {
+        throw new Error(`category ${input.categoryId} not found`)
+      }
+
+      const matchType = ['contains', 'exact', 'regex'].includes(input.matchType || '')
+        ? String(input.matchType)
+        : 'contains'
+      const pattern = (input.pattern || transaction.description || '').trim()
+      if (!pattern) {
+        throw new Error('rule pattern cannot be empty')
+      }
+
+      const accountId = input.accountScoped === false ? null : transaction.account_id
+      const priority = Number.isFinite(input.priority) ? Number(input.priority) : 100
+
+      const runCreate = db.transaction(() => {
+        db.prepare('UPDATE exp_transactions SET category_id = ? WHERE id = ?').run(
+          input.categoryId,
+          input.transactionId
+        )
+
+        const insertResult = db
+          .prepare(
+            `
+            INSERT INTO exp_categorization_rules(
+              priority,
+              match_type,
+              pattern,
+              category_id,
+              account_id,
+              active
+            )
+            VALUES(?, ?, ?, ?, ?, 1)
+            `
+          )
+          .run(priority, matchType, pattern, input.categoryId, accountId)
+
+        return Number(insertResult.lastInsertRowid)
+      })
+
+      const ruleId = runCreate()
+      return this.getCategorizationRuleOrThrow(db, ruleId)
+    })
+  }
+
+  disableCategorizationRule(ruleId: number): CategorizationRuleRecord {
+    this.ensureSchema()
+
+    return this.withDatabase((db) => {
+      const existingRule = this.getCategorizationRuleOrThrow(db, ruleId)
+
+      db.prepare(
+        `
+        UPDATE exp_categorization_rules
+        SET active = 0
+        WHERE id = ?
+        `
+      ).run(ruleId)
+
+      return {
+        ...existingRule,
+        active: false,
       }
     })
   }
@@ -1828,6 +1982,55 @@ export class ExpensesService {
     }
 
     return this.mapImportRowRecord(row)
+  }
+
+  private getCategorizationRuleOrThrow(
+    db: Database.Database,
+    ruleId: number
+  ): CategorizationRuleRecord {
+    const row = db
+      .prepare(
+        `
+        SELECT
+          r.id,
+          r.priority,
+          r.match_type,
+          r.pattern,
+          r.category_id,
+          c.name AS category_name,
+          r.account_id,
+          a.name AS account_name,
+          r.active,
+          r.created_at
+        FROM exp_categorization_rules AS r
+        INNER JOIN exp_categories AS c ON c.id = r.category_id
+        LEFT JOIN exp_accounts AS a ON a.id = r.account_id
+        WHERE r.id = ?
+        LIMIT 1
+        `
+      )
+      .get(ruleId) as CategorizationRuleRow | undefined
+
+    if (!row) {
+      throw new Error(`categorization rule ${ruleId} not found`)
+    }
+
+    return this.mapCategorizationRuleRecord(row)
+  }
+
+  private mapCategorizationRuleRecord(row: CategorizationRuleRow): CategorizationRuleRecord {
+    return {
+      id: row.id,
+      priority: row.priority,
+      matchType: row.match_type,
+      pattern: row.pattern,
+      categoryId: row.category_id,
+      categoryName: row.category_name,
+      accountId: row.account_id,
+      accountName: row.account_name,
+      active: row.active === 1,
+      createdAt: row.created_at,
+    }
   }
 
   private normalizeTransactionDate(rawDate: string): string {

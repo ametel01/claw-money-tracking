@@ -493,6 +493,75 @@ test('importPdfStatement populates merchant_id without rewriting descriptions', 
   )
 })
 
+test('createCategorizationRuleFromTransaction affects subsequent imports', async (t) => {
+  const root = createWorkspace()
+  t.after(() => {
+    rmSync(root, { recursive: true, force: true })
+  })
+
+  const service = new ExpensesService(root)
+  stubExtractedStatementText(service, '2026-01-03 Bookshop Purchase -150.00\n')
+
+  const firstImport = await service.importPdfStatement(
+    'Rules Wallet',
+    'rules-a.pdf',
+    Buffer.from('%PDF-1.4 fixture')
+  )
+
+  const db = openWorkspaceDb(root)
+  t.after(() => {
+    db.close()
+  })
+
+  const shoppingCategoryId = Number(
+    (
+      db.prepare('SELECT id FROM exp_categories WHERE name = ?').get('Shopping') as {
+        id: number
+      }
+    ).id
+  )
+  const importedTransaction = db
+    .prepare(
+      `
+      SELECT id
+      FROM exp_transactions
+      WHERE import_batch_id = ?
+      LIMIT 1
+      `
+    )
+    .get(firstImport.batchId) as { id: number }
+
+  const createdRule = service.createCategorizationRuleFromTransaction({
+    transactionId: importedTransaction.id,
+    categoryId: shoppingCategoryId,
+    accountScoped: true,
+  })
+
+  assert.equal(createdRule.categoryName, 'Shopping')
+  assert.equal(createdRule.accountName, 'Rules Wallet')
+
+  stubExtractedStatementText(service, '2026-01-04 Bookshop Purchase -175.00\n')
+  const secondImport = await service.importPdfStatement(
+    'Rules Wallet',
+    'rules-b.pdf',
+    Buffer.from('%PDF-1.4 fixture')
+  )
+
+  const secondTransactionCategory = db
+    .prepare(
+      `
+      SELECT c.name AS category_name
+      FROM exp_transactions AS t
+      LEFT JOIN exp_categories AS c ON c.id = t.category_id
+      WHERE t.import_batch_id = ?
+      LIMIT 1
+      `
+    )
+    .get(secondImport.batchId) as { category_name: string | null }
+
+  assert.equal(secondTransactionCategory.category_name, 'Shopping')
+})
+
 test('importPdfStatement prefers account-scoped categorization rules over global rules', async (t) => {
   const root = createWorkspace()
   t.after(() => {

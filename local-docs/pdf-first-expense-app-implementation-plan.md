@@ -237,7 +237,7 @@ Failure modes:
 
 - If only the business-key check is fixed but `source_hash` is not, SQLite uniqueness errors will still drop valid rows.
 
-### Step 2.4: Add user-generated categorization rules from corrections
+### Step 2.4: Add user-generated categorization rules from corrections **COMPLETED**
 
 Files:
 

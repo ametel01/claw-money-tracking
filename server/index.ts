@@ -68,6 +68,46 @@ export function createExpensesApp(service: ExpensesService) {
     })
   )
 
+  app.get(
+    '/api/expenses/categorization-rules',
+    asyncHandler(async (_request, response) => {
+      response.json(service.listCategorizationRules())
+    })
+  )
+
+  app.post(
+    '/api/expenses/categorization-rules/from-transaction',
+    asyncHandler(async (request, response) => {
+      const body = isObject(request.body) ? request.body : {}
+      const matchType = typeof body.matchType === 'string' ? body.matchType : undefined
+      const priority =
+        typeof body.priority === 'number' && Number.isFinite(body.priority)
+          ? body.priority
+          : undefined
+      const pattern = typeof body.pattern === 'string' ? body.pattern : undefined
+
+      response.json(
+        service.createCategorizationRuleFromTransaction({
+          transactionId: requireBodyId(body.transactionId, 'transaction'),
+          categoryId: requireBodyId(body.categoryId, 'category'),
+          accountScoped: body.accountScoped !== false,
+          ...(matchType ? { matchType } : {}),
+          ...(priority != null ? { priority } : {}),
+          ...(pattern ? { pattern } : {}),
+        })
+      )
+    })
+  )
+
+  app.post(
+    '/api/expenses/categorization-rules/:id/disable',
+    asyncHandler(async (request, response) => {
+      response.json(
+        service.disableCategorizationRule(requireIdParam(request.params.id, 'categorization rule'))
+      )
+    })
+  )
+
   app.post(
     '/api/expenses/import-rows/:id/accept',
     asyncHandler(async (request, response) => {
@@ -177,6 +217,17 @@ function isObject(value: unknown): value is Record<string, unknown> {
 function requireIdParam(raw: string | string[] | undefined, label: string): number {
   const value = Array.isArray(raw) ? raw[0] : raw
   const parsed = Number.parseInt(value || '', 10)
+  if (!Number.isInteger(parsed) || parsed <= 0) {
+    throw new Error(`invalid ${label} id`)
+  }
+
+  return parsed
+}
+
+function requireBodyId(raw: unknown, label: string): number {
+  const parsed =
+    typeof raw === 'number' ? raw : typeof raw === 'string' ? Number.parseInt(raw, 10) : Number.NaN
+
   if (!Number.isInteger(parsed) || parsed <= 0) {
     throw new Error(`invalid ${label} id`)
   }

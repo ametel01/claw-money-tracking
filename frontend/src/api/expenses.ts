@@ -1,6 +1,7 @@
 import type {
   ApiStatusResponse,
   BackfillFxResponse,
+  CategorizationRuleRecord,
   ImportBatchDetail,
   ImportBatchSummary,
   ImportPdfResponse,
@@ -96,6 +97,39 @@ export function rejectImportRow(rowId: number): Promise<ImportRowActionResponse>
   return requestJson<ImportRowActionResponse>(`/api/expenses/import-rows/${rowId}/reject`, {
     method: 'POST',
   })
+}
+
+export function getCategorizationRules(): Promise<CategorizationRuleRecord[]> {
+  return requestJson<CategorizationRuleRecord[]>('/api/expenses/categorization-rules')
+}
+
+export function createCategorizationRuleFromTransaction(input: {
+  transactionId: number
+  categoryId: number
+  accountScoped?: boolean
+  matchType?: string
+  priority?: number
+  pattern?: string
+}): Promise<CategorizationRuleRecord> {
+  return requestJson<CategorizationRuleRecord>(
+    '/api/expenses/categorization-rules/from-transaction',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(input),
+    }
+  )
+}
+
+export function disableCategorizationRule(ruleId: number): Promise<CategorizationRuleRecord> {
+  return requestJson<CategorizationRuleRecord>(
+    `/api/expenses/categorization-rules/${ruleId}/disable`,
+    {
+      method: 'POST',
+    }
+  )
 }
 
 export function toErrorMessage(error: unknown): string {

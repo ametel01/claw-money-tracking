@@ -5,6 +5,7 @@ import type { AddressInfo } from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
+import Database from 'better-sqlite3'
 import { ExpensesService } from '../server/expenses-service'
 import { createExpensesApp } from '../server/index'
 
@@ -155,4 +156,91 @@ test('import review routes expose batches and row transitions', async (t) => {
     needs_review: 0,
     rejected: 1,
   })
+})
+
+test('categorization rule routes list and disable active rules', async (t) => {
+  const root = createWorkspace()
+  t.after(() => {
+    rmSync(root, { recursive: true, force: true })
+  })
+
+  const service = new ExpensesService(root)
+  stubExtractedStatementText(service, '2026-01-03 Bookshop Purchase -150.00\n')
+
+  const importResult = await service.importPdfStatement(
+    'Rules API Wallet',
+    'rules-api.pdf',
+    Buffer.from('%PDF-1.4 fixture')
+  )
+
+  const db = new Database(path.join(root, 'money_dashboard.db'))
+  db.pragma('foreign_keys = ON')
+  t.after(() => {
+    db.close()
+  })
+
+  const transactionId = Number(
+    (
+      db
+        .prepare('SELECT id FROM exp_transactions WHERE import_batch_id = ? LIMIT 1')
+        .get(importResult.batchId) as { id: number }
+    ).id
+  )
+  const shoppingCategoryId = Number(
+    (
+      db.prepare('SELECT id FROM exp_categories WHERE name = ?').get('Shopping') as {
+        id: number
+      }
+    ).id
+  )
+
+  const app = createExpensesApp(service)
+  const server = app.listen(0, '127.0.0.1')
+  t.after(async () => {
+    server.close()
+    await once(server, 'close')
+  })
+  await once(server, 'listening')
+
+  const address = server.address() as AddressInfo
+  const baseUrl = `http://127.0.0.1:${address.port}`
+
+  const createdRule = await requestJson<{
+    id: number
+    active: boolean
+    categoryName: string | null
+  }>(`${baseUrl}/api/expenses/categorization-rules/from-transaction`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      transactionId,
+      categoryId: shoppingCategoryId,
+      accountScoped: true,
+    }),
+  })
+
+  assert.equal(createdRule.active, true)
+  assert.equal(createdRule.categoryName, 'Shopping')
+
+  const listedRules = await requestJson<Array<{ id: number; active: boolean }>>(
+    `${baseUrl}/api/expenses/categorization-rules`
+  )
+  assert.equal(listedRules.length, 1)
+  assert.equal(listedRules[0]?.id, createdRule.id)
+
+  const disabledRule = await requestJson<{ id: number; active: boolean }>(
+    `${baseUrl}/api/expenses/categorization-rules/${createdRule.id}/disable`,
+    {
+      method: 'POST',
+    }
+  )
+  assert.equal(disabledRule.id, createdRule.id)
+  assert.equal(disabledRule.active, false)
+
+  const listedAfterDisable = await requestJson<Array<{ id: number }>>(
+    `${baseUrl}/api/expenses/categorization-rules`
+  )
+  assert.equal(listedAfterDisable.length, 0)
 })
