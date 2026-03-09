@@ -493,6 +493,189 @@ test('importPdfStatement populates merchant_id without rewriting descriptions', 
   )
 })
 
+test('income migration keeps only Demerzel salary on Revolut in overview', (t) => {
+  const root = createWorkspace()
+  t.after(() => {
+    rmSync(root, { recursive: true, force: true })
+  })
+
+  const service = new ExpensesService(root)
+  service.ensureSchema()
+
+  const db = openWorkspaceDb(root)
+  t.after(() => {
+    db.close()
+  })
+
+  const revolutAccountId = Number(
+    db.prepare('INSERT INTO exp_accounts(name, currency) VALUES(?, ?)').run('Revolut USD', 'USD')
+      .lastInsertRowid
+  )
+  const bpiAccountId = Number(
+    db
+      .prepare('INSERT INTO exp_accounts(name, currency) VALUES(?, ?)')
+      .run('BPI 012450074240', 'PHP').lastInsertRowid
+  )
+  const incomeCategoryId = Number(
+    (db.prepare('SELECT id FROM exp_categories WHERE name = ?').get('Income') as { id: number }).id
+  )
+  const groceriesCategoryId = Number(
+    (db.prepare('SELECT id FROM exp_categories WHERE name = ?').get('Groceries') as { id: number })
+      .id
+  )
+  const transportCategoryId = Number(
+    (
+      db.prepare('SELECT id FROM exp_categories WHERE name = ?').get('Transport') as {
+        id: number
+      }
+    ).id
+  )
+  const insertTransaction = db.prepare(
+    `
+    INSERT INTO exp_transactions(
+      account_id,
+      tx_date,
+      posted_date,
+      description,
+      category_id,
+      amount,
+      currency,
+      amount_original,
+      amount_home,
+      fx_rate_used,
+      fx_date,
+      source_hash
+    )
+    VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `
+  )
+
+  insertTransaction.run(
+    revolutAccountId,
+    '2026-02-16',
+    '2026-02-16',
+    'Transfer from DEMERZEL SOLUTIONS LIMITED',
+    incomeCategoryId,
+    8400,
+    'USD',
+    8400,
+    8400,
+    1,
+    '2026-02-16',
+    'income-migration-1'
+  )
+  insertTransaction.run(
+    bpiAccountId,
+    '2026-02-16',
+    '2026-02-16',
+    'Received From Other Bank 7423767211717 9 Ibtd',
+    incomeCategoryId,
+    50000,
+    'PHP',
+    50000,
+    50000,
+    1,
+    '2026-02-16',
+    'income-migration-2'
+  )
+  insertTransaction.run(
+    bpiAccountId,
+    '2026-02-28',
+    '2026-02-28',
+    'Interest Payment',
+    incomeCategoryId,
+    4.15,
+    'PHP',
+    4.15,
+    4.15,
+    1,
+    '2026-02-28',
+    'income-migration-3'
+  )
+  insertTransaction.run(
+    bpiAccountId,
+    '2026-02-18',
+    '2026-02-18',
+    'Groceries',
+    groceriesCategoryId,
+    -120,
+    'PHP',
+    -120,
+    -120,
+    1,
+    '2026-02-18',
+    'income-migration-4'
+  )
+  insertTransaction.run(
+    bpiAccountId,
+    '2026-02-09',
+    '2026-02-09',
+    'Grab',
+    transportCategoryId,
+    698,
+    'PHP',
+    698,
+    698,
+    1,
+    '2026-02-09',
+    'income-migration-5'
+  )
+
+  db.prepare('DELETE FROM exp_meta WHERE key = ?').run('income_classification_v1')
+
+  const overview = service.getOverview()
+
+  assert.deepEqual(overview, {
+    income: 8400,
+    expenses: -120,
+    net: 8280,
+    txCount: 5,
+  })
+
+  const rows = db
+    .prepare(
+      `
+      SELECT t.description, c.name AS category_name, c.kind AS category_kind
+      FROM exp_transactions AS t
+      LEFT JOIN exp_categories AS c ON c.id = t.category_id
+      ORDER BY t.id ASC
+      `
+    )
+    .all() as Array<{
+    description: string
+    category_name: string | null
+    category_kind: string | null
+  }>
+
+  assert.deepEqual(rows, [
+    {
+      description: 'Transfer from DEMERZEL SOLUTIONS LIMITED',
+      category_name: 'Salary',
+      category_kind: 'income',
+    },
+    {
+      description: 'Received From Other Bank 7423767211717 9 Ibtd',
+      category_name: 'Transfer',
+      category_kind: 'transfer',
+    },
+    {
+      description: 'Interest Payment',
+      category_name: 'Transfer',
+      category_kind: 'transfer',
+    },
+    {
+      description: 'Groceries',
+      category_name: 'Groceries',
+      category_kind: 'expense',
+    },
+    {
+      description: 'Grab',
+      category_name: 'Transport',
+      category_kind: 'expense',
+    },
+  ])
+})
+
 test('createCategorizationRuleFromTransaction affects subsequent imports', async (t) => {
   const root = createWorkspace()
   t.after(() => {

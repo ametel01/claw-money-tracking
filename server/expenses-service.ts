@@ -311,7 +311,7 @@ export class ExpensesService {
               COALESCE(SUM(
                 CASE
                   WHEN COALESCE(t.amount_home, t.amount) > 0
-                    AND COALESCE(c.kind, 'expense') != 'transfer'
+                    AND COALESCE(c.kind, 'expense') = 'income'
                   THEN COALESCE(t.amount_home, t.amount)
                 END
               ), 0) AS income,
@@ -352,7 +352,7 @@ export class ExpensesService {
             substr(t.tx_date, 1, 7) AS month,
             COALESCE(SUM(
               CASE
-                WHEN COALESCE(c.kind, 'expense') != 'transfer'
+                WHEN COALESCE(c.kind, 'expense') = 'income'
                   AND COALESCE(t.amount_home, t.amount) > 0
                 THEN COALESCE(t.amount_home, t.amount)
                 ELSE 0
@@ -2094,17 +2094,25 @@ export class ExpensesService {
   }
 
   private runExpenseDataMigrations(db: Database.Database): void {
-    if (this.migrationApplied(db, 'description_cleanup_v1')) {
-      return
+    if (!this.migrationApplied(db, 'description_cleanup_v1')) {
+      this.cleanupExistingTransactionDescriptions(db)
+      db.prepare(
+        `
+        INSERT OR REPLACE INTO exp_meta(key, value)
+        VALUES(?, ?)
+        `
+      ).run('description_cleanup_v1', new Date().toISOString())
     }
 
-    this.cleanupExistingTransactionDescriptions(db)
-    db.prepare(
-      `
-      INSERT OR REPLACE INTO exp_meta(key, value)
-      VALUES(?, ?)
-      `
-    ).run('description_cleanup_v1', new Date().toISOString())
+    if (!this.migrationApplied(db, 'income_classification_v1')) {
+      this.reclassifyIncomeLikeTransactions(db)
+      db.prepare(
+        `
+        INSERT OR REPLACE INTO exp_meta(key, value)
+        VALUES(?, ?)
+        `
+      ).run('income_classification_v1', new Date().toISOString())
+    }
   }
 
   private migrationApplied(db: Database.Database, key: string): boolean {
@@ -2855,6 +2863,48 @@ export class ExpensesService {
     return this.smartTitleCase(merchantCandidate.replace(/[^\w\s&/-]+/g, ' ').replace(/\s+/g, ' '))
   }
 
+  private reclassifyIncomeLikeTransactions(db: Database.Database): void {
+    const rows = db
+      .prepare(
+        `
+        SELECT t.id, t.account_id, t.description, t.amount
+        FROM exp_transactions AS t
+        LEFT JOIN exp_categories AS c ON c.id = t.category_id
+        WHERE COALESCE(c.kind, 'expense') = 'income'
+           OR t.amount > 0
+        `
+      )
+      .all() as Array<{
+      id: number
+      account_id: number
+      description: string
+      amount: number
+    }>
+
+    const updateCategory = db.prepare('UPDATE exp_transactions SET category_id = ? WHERE id = ?')
+
+    for (const row of rows) {
+      const categoryId = this.pickCategory(db, row.description, row.amount, row.account_id)
+      updateCategory.run(categoryId, row.id)
+    }
+  }
+
+  private accountNameContains(
+    db: Database.Database,
+    accountId: number | null,
+    expectedFragment: string
+  ): boolean {
+    if (!accountId) {
+      return false
+    }
+
+    const row = db.prepare('SELECT name FROM exp_accounts WHERE id = ? LIMIT 1').get(accountId) as
+      | { name: string | null }
+      | undefined
+
+    return (row?.name || '').toLowerCase().includes(expectedFragment.toLowerCase())
+  }
+
   private pickCategory(
     db: Database.Database,
     description: string,
@@ -2862,6 +2912,7 @@ export class ExpensesService {
     accountId: number | null
   ): number | null {
     const normalizedDescription = (description || '').toLowerCase()
+    const isRevolutAccount = this.accountNameContains(db, accountId, 'revolut')
     const rows = db
       .prepare(
         `
@@ -2904,9 +2955,29 @@ export class ExpensesService {
       }
     }
 
+    if (isRevolutAccount && normalizedDescription.includes('demerzel solutions')) {
+      const salaryRow = db.prepare('SELECT id FROM exp_categories WHERE name = ?').get('Salary') as
+        | { id: number }
+        | undefined
+      if (salaryRow) {
+        return salaryRow.id
+      }
+    }
+
     const keywordBuckets: Array<[string, string[]]> = [
       ['Transfer', ['withdrawing savings', 'depositing savings']],
-      ['Income', ['transfer from', 'salary', 'refund', 'cashback', 'interest', 'received']],
+      [
+        'Transfer',
+        [
+          'transfer from',
+          'received from other bank',
+          'received from',
+          'refund',
+          'cashback',
+          'interest payment',
+          'interest pay',
+        ],
+      ],
       ['Investment', ['pmmf placement', 'investment', 'money market', 'mutual fund']],
       [
         'Transfer',
@@ -2938,7 +3009,7 @@ export class ExpensesService {
       }
     }
 
-    const fallbackName = amount > 0 ? 'Income' : 'Uncategorized'
+    const fallbackName = amount > 0 ? 'Transfer' : 'Uncategorized'
     const fallbackRow = db
       .prepare('SELECT id FROM exp_categories WHERE name = ?')
       .get(fallbackName) as { id: number } | undefined
