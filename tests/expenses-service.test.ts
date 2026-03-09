@@ -121,9 +121,41 @@ test('importPdfStatement deduplicates fixture rows', async (t) => {
     expectedRows.map((entry) => entry.amount)
   )
   assert.deepEqual(new Set(rows.map((row) => row.currency)), new Set(['USD']))
+
+  const firstBatchRawRows = db
+    .prepare(
+      `
+      SELECT status, transaction_id
+      FROM exp_import_rows_raw
+      WHERE batch_id = ?
+      ORDER BY row_no ASC
+      `
+    )
+    .all(firstImport.batchId) as Array<{ status: string; transaction_id: number | null }>
+  const secondBatchRawRows = db
+    .prepare(
+      `
+      SELECT status, transaction_id
+      FROM exp_import_rows_raw
+      WHERE batch_id = ?
+      ORDER BY row_no ASC
+      `
+    )
+    .all(secondImport.batchId) as Array<{ status: string; transaction_id: number | null }>
+
+  assert.deepEqual(
+    firstBatchRawRows.map((row) => row.status),
+    new Array(expectedRows.length).fill('accepted')
+  )
+  assert.ok(firstBatchRawRows.every((row) => row.transaction_id != null))
+  assert.deepEqual(
+    secondBatchRawRows.map((row) => row.status),
+    new Array(expectedRows.length).fill('duplicate')
+  )
+  assert.ok(secondBatchRawRows.every((row) => row.transaction_id == null))
 })
 
-test('regression: accepted raw import rows remain parsed', async (t) => {
+test('importPdfStatement records accepted raw rows with review fields', async (t) => {
   const root = createWorkspace()
   t.after(() => {
     rmSync(root, { recursive: true, force: true })
@@ -149,19 +181,117 @@ test('regression: accepted raw import rows remain parsed', async (t) => {
   const statuses = db
     .prepare(
       `
-      SELECT status
+      SELECT status, posted_date, merchant_candidate, reference_text, parse_notes, transaction_id
       FROM exp_import_rows_raw
       WHERE batch_id = ?
       ORDER BY row_no ASC
       `
     )
-    .all(result.batchId) as Array<{ status: string }>
+    .all(result.batchId) as Array<{
+    status: string
+    posted_date: string | null
+    merchant_candidate: string | null
+    reference_text: string | null
+    parse_notes: string | null
+    transaction_id: number | null
+  }>
 
   assert.equal(statuses.length, expectedRows.length)
   assert.deepEqual(
     statuses.map((row) => row.status),
-    new Array(expectedRows.length).fill('parsed')
+    new Array(expectedRows.length).fill('accepted')
   )
+  assert.deepEqual(
+    statuses.map((row) => row.posted_date),
+    expectedRows.map((row) => row.tx_date)
+  )
+  assert.deepEqual(
+    statuses.map((row) => row.reference_text),
+    expectedRows.map((row) => row.description)
+  )
+  assert.ok(statuses.every((row) => row.merchant_candidate === row.reference_text))
+  assert.ok(statuses.every((row) => row.parse_notes == null))
+  assert.ok(statuses.every((row) => row.transaction_id != null))
+})
+
+test('importPdfStatement marks low-confidence and incomplete rows as needs_review', async (t) => {
+  const root = createWorkspace()
+  t.after(() => {
+    rmSync(root, { recursive: true, force: true })
+  })
+
+  const service = new ExpensesService(root)
+  stubExtractedStatementText(service, 'ignored by stubbed parsePdfImportRows')
+  ;(
+    service as {
+      parsePdfImportRows: (lines: string[]) => Array<Record<string, unknown>>
+    }
+  ).parsePdfImportRows = (_lines) => [
+    {
+      txDate: '2026-01-03',
+      postedDate: '2026-01-04',
+      description: 'Possible coffee shop',
+      amount: -120,
+      confidence: 0.4,
+      rawText: 'raw-low-confidence',
+      merchantCandidate: 'Possible coffee shop',
+      referenceText: 'Possible coffee shop',
+      parseNotes: 'fallback parser match',
+    },
+    {
+      txDate: null,
+      postedDate: null,
+      description: 'Missing date row',
+      amount: -80,
+      confidence: 0.98,
+      rawText: 'raw-missing-date',
+      merchantCandidate: 'Missing date row',
+      referenceText: 'Missing date row',
+      parseNotes: null,
+    },
+  ]
+
+  const result = await service.importPdfStatement(
+    'Review Account',
+    'review.pdf',
+    Buffer.from('%PDF-1.4 fixture')
+  )
+
+  assert.deepEqual(result, {
+    ok: true,
+    batchId: result.batchId,
+    parsedRows: 2,
+    insertedTransactions: 0,
+  })
+
+  const db = openWorkspaceDb(root)
+  t.after(() => {
+    db.close()
+  })
+
+  const reviewRows = db
+    .prepare(
+      `
+      SELECT status, parse_notes, transaction_id
+      FROM exp_import_rows_raw
+      WHERE batch_id = ?
+      ORDER BY row_no ASC
+      `
+    )
+    .all(result.batchId) as Array<{
+    status: string
+    parse_notes: string | null
+    transaction_id: number | null
+  }>
+
+  assert.deepEqual(
+    reviewRows.map((row) => row.status),
+    ['needs_review', 'needs_review']
+  )
+  assert.match(reviewRows[0]?.parse_notes || '', /confidence 0\.40 below import threshold/)
+  assert.match(reviewRows[0]?.parse_notes || '', /fallback parser match/)
+  assert.match(reviewRows[1]?.parse_notes || '', /missing transaction date/)
+  assert.ok(reviewRows.every((row) => row.transaction_id == null))
 })
 
 test('regression: pickCategory ignores account-scoped rules', async (t) => {

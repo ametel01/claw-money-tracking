@@ -75,11 +75,16 @@ CREATE TABLE IF NOT EXISTS exp_import_rows_raw (
   row_no INTEGER NOT NULL,
   raw_text TEXT NOT NULL,
   parsed_tx_date TEXT,
+  posted_date TEXT,
   parsed_description TEXT,
+  merchant_candidate TEXT,
+  reference_text TEXT,
   parsed_amount REAL,
   confidence REAL NOT NULL DEFAULT 0,
+  parse_notes TEXT,
   status TEXT NOT NULL DEFAULT 'parsed' CHECK(status IN ('parsed','accepted','rejected','duplicate','needs_review')),
   error TEXT,
+  transaction_id INTEGER REFERENCES exp_transactions(id) ON DELETE SET NULL,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 

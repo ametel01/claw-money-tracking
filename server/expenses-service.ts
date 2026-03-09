@@ -11,6 +11,18 @@ export interface ParsedExpenseTransaction {
   confidence: number
 }
 
+interface ParsedImportRow {
+  txDate: string | null
+  postedDate: string | null
+  description: string | null
+  amount: number | null
+  confidence: number
+  rawText: string
+  merchantCandidate: string | null
+  referenceText: string | null
+  parseNotes: string | null
+}
+
 interface TableInfoRow {
   name: string
 }
@@ -56,6 +68,8 @@ interface PdfParseResult {
 }
 
 type PdfParseFn = (buffer: Buffer) => Promise<PdfParseResult>
+
+const IMPORT_ACCEPTANCE_CONFIDENCE = 0.75
 
 export class ExpensesService {
   private readonly dbPath: string
@@ -248,7 +262,7 @@ export class ExpensesService {
 
     const pdfPath = this.saveUploadBytes(filename, content, this.importsDir)
     const text = await this.extractPdfText(pdfPath)
-    const parsedEntries = this.parsePdfLines(text.split(/\r?\n/).filter((line) => line.trim()))
+    const parsedRows = this.parsePdfImportRows(text.split(/\r?\n/).filter((line) => line.trim()))
 
     return this.withDatabase(async (db) => {
       const accountId = this.getOrCreateAccount(db, accountName)
@@ -276,12 +290,17 @@ export class ExpensesService {
           row_no,
           raw_text,
           parsed_tx_date,
+          posted_date,
           parsed_description,
+          merchant_candidate,
+          reference_text,
           parsed_amount,
           confidence,
-          status
+          parse_notes,
+          status,
+          transaction_id
         )
-        VALUES(?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `
       )
       const insertTransactionStatement = db.prepare(
@@ -289,6 +308,7 @@ export class ExpensesService {
         INSERT INTO exp_transactions(
           account_id,
           tx_date,
+          posted_date,
           description,
           amount,
           currency,
@@ -300,57 +320,97 @@ export class ExpensesService {
           import_batch_id,
           source_hash
         )
-        VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `
       )
 
-      for (const [index, parsedEntry] of parsedEntries.entries()) {
+      for (const [index, parsedRow] of parsedRows.entries()) {
         parsedCount += 1
-        const rawLine =
-          `${parsedEntry.tx_date} ${parsedEntry.description} ${parsedEntry.amount}`.trim()
+        const normalizedRow = this.normalizeParsedImportRow(parsedRow)
+        const rawText = this.buildRawImportText(normalizedRow)
+        const referenceText = normalizedRow.referenceText ?? normalizedRow.description
+        const merchantCandidate = normalizedRow.merchantCandidate ?? normalizedRow.description
+        const reviewNotes = this.buildReviewNotes(normalizedRow)
+        let status: 'accepted' | 'duplicate' | 'needs_review' = 'needs_review'
+        let transactionId: number | null = null
+
+        if (
+          normalizedRow.txDate &&
+          normalizedRow.description &&
+          normalizedRow.amount != null &&
+          reviewNotes.length === 0
+        ) {
+          const transactionCandidate: ParsedExpenseTransaction = {
+            tx_date: normalizedRow.txDate,
+            description: normalizedRow.description,
+            amount: normalizedRow.amount,
+            confidence: normalizedRow.confidence,
+          }
+
+          if (this.transactionExists(db, transactionCandidate, rawText)) {
+            status = 'duplicate'
+          } else {
+            const categoryId = this.pickCategory(
+              db,
+              transactionCandidate.description,
+              transactionCandidate.amount
+            )
+            const fxRate = await this.getFxRate(
+              db,
+              accountCurrency,
+              'PHP',
+              transactionCandidate.tx_date
+            )
+            const amountOriginal = Number(transactionCandidate.amount)
+            const amountHome = amountOriginal * fxRate
+
+            try {
+              const insertResult = insertTransactionStatement.run(
+                accountId,
+                transactionCandidate.tx_date,
+                normalizedRow.postedDate ?? transactionCandidate.tx_date,
+                transactionCandidate.description,
+                amountOriginal,
+                accountCurrency,
+                amountOriginal,
+                amountHome,
+                fxRate,
+                transactionCandidate.tx_date,
+                categoryId,
+                batchId,
+                this.buildSourceHash(transactionCandidate, rawText)
+              )
+              insertedCount += 1
+              status = 'accepted'
+              transactionId = Number(insertResult.lastInsertRowid)
+            } catch (error) {
+              if (
+                error instanceof Database.SqliteError &&
+                error.code === 'SQLITE_CONSTRAINT_UNIQUE'
+              ) {
+                status = 'duplicate'
+              } else {
+                throw error
+              }
+            }
+          }
+        }
 
         rawRowStatement.run(
           batchId,
           index + 1,
-          rawLine,
-          parsedEntry.tx_date,
-          parsedEntry.description,
-          parsedEntry.amount,
-          parsedEntry.confidence,
-          'parsed'
+          rawText,
+          normalizedRow.txDate,
+          normalizedRow.postedDate,
+          normalizedRow.description,
+          merchantCandidate,
+          referenceText,
+          normalizedRow.amount,
+          normalizedRow.confidence,
+          reviewNotes.join('; ') || null,
+          status,
+          transactionId
         )
-
-        if (this.transactionExists(db, parsedEntry, rawLine)) {
-          continue
-        }
-
-        const categoryId = this.pickCategory(db, parsedEntry.description, parsedEntry.amount)
-        const fxRate = await this.getFxRate(db, accountCurrency, 'PHP', parsedEntry.tx_date)
-        const amountOriginal = Number(parsedEntry.amount)
-        const amountHome = amountOriginal * fxRate
-
-        try {
-          insertTransactionStatement.run(
-            accountId,
-            parsedEntry.tx_date,
-            parsedEntry.description,
-            amountOriginal,
-            accountCurrency,
-            amountOriginal,
-            amountHome,
-            fxRate,
-            parsedEntry.tx_date,
-            categoryId,
-            batchId,
-            this.buildSourceHash(parsedEntry, rawLine)
-          )
-          insertedCount += 1
-        } catch (error) {
-          if (error instanceof Database.SqliteError && error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
-            continue
-          }
-          throw error
-        }
       }
 
       db.prepare(
@@ -383,9 +443,17 @@ export class ExpensesService {
           (row) => row.name
         )
       )
+      const rawImportColumns = new Set(
+        (db.prepare('PRAGMA table_info(exp_import_rows_raw)').all() as TableInfoRow[]).map(
+          (row) => row.name
+        )
+      )
 
       if (!existingColumns.has('amount_original')) {
         db.exec('ALTER TABLE exp_transactions ADD COLUMN amount_original REAL')
+      }
+      if (!existingColumns.has('posted_date')) {
+        db.exec('ALTER TABLE exp_transactions ADD COLUMN posted_date TEXT')
       }
       if (!existingColumns.has('amount_home')) {
         db.exec('ALTER TABLE exp_transactions ADD COLUMN amount_home REAL')
@@ -395,6 +463,23 @@ export class ExpensesService {
       }
       if (!existingColumns.has('fx_date')) {
         db.exec('ALTER TABLE exp_transactions ADD COLUMN fx_date TEXT')
+      }
+      if (!rawImportColumns.has('posted_date')) {
+        db.exec('ALTER TABLE exp_import_rows_raw ADD COLUMN posted_date TEXT')
+      }
+      if (!rawImportColumns.has('merchant_candidate')) {
+        db.exec('ALTER TABLE exp_import_rows_raw ADD COLUMN merchant_candidate TEXT')
+      }
+      if (!rawImportColumns.has('reference_text')) {
+        db.exec('ALTER TABLE exp_import_rows_raw ADD COLUMN reference_text TEXT')
+      }
+      if (!rawImportColumns.has('parse_notes')) {
+        db.exec('ALTER TABLE exp_import_rows_raw ADD COLUMN parse_notes TEXT')
+      }
+      if (!rawImportColumns.has('transaction_id')) {
+        db.exec(
+          'ALTER TABLE exp_import_rows_raw ADD COLUMN transaction_id INTEGER REFERENCES exp_transactions(id) ON DELETE SET NULL'
+        )
       }
 
       db.exec('UPDATE exp_transactions SET amount_original = COALESCE(amount_original, amount)')
@@ -450,6 +535,10 @@ export class ExpensesService {
     }
 
     return this.parseGenericPdfLines(lines)
+  }
+
+  private parsePdfImportRows(lines: string[]): ParsedImportRow[] {
+    return this.parsePdfLines(lines).map((row) => this.toParsedImportRow(row))
   }
 
   cleanupExistingTransactionDescriptions(db: Database.Database): void {
@@ -1069,6 +1158,66 @@ export class ExpensesService {
     }
   }
 
+  private toParsedImportRow(row: ParsedExpenseTransaction): ParsedImportRow {
+    const description = this.normalizeOptionalText(row.description)
+    return {
+      txDate: this.normalizeOptionalText(row.tx_date),
+      postedDate: this.normalizeOptionalText(row.tx_date),
+      description,
+      amount: Number.isFinite(row.amount) ? row.amount : null,
+      confidence: Number.isFinite(row.confidence) ? row.confidence : 0,
+      rawText: `${row.tx_date} ${row.description} ${row.amount}`.trim(),
+      merchantCandidate: description,
+      referenceText: description,
+      parseNotes: null,
+    }
+  }
+
+  private normalizeParsedImportRow(row: ParsedImportRow): ParsedImportRow {
+    return {
+      txDate: this.normalizeOptionalText(row.txDate),
+      postedDate: this.normalizeOptionalText(row.postedDate ?? row.txDate),
+      description: this.normalizeOptionalText(row.description),
+      amount: typeof row.amount === 'number' && Number.isFinite(row.amount) ? row.amount : null,
+      confidence: Number.isFinite(row.confidence) ? row.confidence : 0,
+      rawText: this.normalizeOptionalText(row.rawText) || '',
+      merchantCandidate: this.normalizeOptionalText(row.merchantCandidate),
+      referenceText: this.normalizeOptionalText(row.referenceText),
+      parseNotes: this.normalizeOptionalText(row.parseNotes),
+    }
+  }
+
+  private buildRawImportText(row: ParsedImportRow): string {
+    const fallback = [row.txDate, row.description, row.amount != null ? String(row.amount) : null]
+      .filter(Boolean)
+      .join(' ')
+      .trim()
+
+    return row.rawText || fallback || 'Unparsed import row'
+  }
+
+  private buildReviewNotes(row: ParsedImportRow): string[] {
+    const notes = new Set<string>()
+
+    if (!row.txDate) {
+      notes.add('missing transaction date')
+    }
+    if (!row.description) {
+      notes.add('missing description')
+    }
+    if (row.amount == null) {
+      notes.add('missing amount')
+    }
+    if (row.confidence < IMPORT_ACCEPTANCE_CONFIDENCE) {
+      notes.add(`confidence ${row.confidence.toFixed(2)} below import threshold`)
+    }
+    if (row.parseNotes) {
+      notes.add(row.parseNotes)
+    }
+
+    return [...notes]
+  }
+
   private normalizeTransactionDate(rawDate: string): string {
     if (/^\d{4}-\d{2}-\d{2}$/.test(rawDate)) {
       return rawDate
@@ -1391,6 +1540,11 @@ export class ExpensesService {
 
   private today(): string {
     return new Date().toISOString().slice(0, 10)
+  }
+
+  private normalizeOptionalText(value: string | null | undefined): string | null {
+    const normalized = (value || '').replace(/\s+/g, ' ').trim()
+    return normalized || null
   }
 
   private pad(value: string): string {

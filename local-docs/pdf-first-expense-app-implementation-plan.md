@@ -60,7 +60,7 @@ Failure modes:
 
 ## Phase 1: Make PDF import trustworthy
 
-### Step 1.1: Expand raw import row capture so review is possible
+### Step 1.1: Expand raw import row capture so review is possible **COMPLETED**
 
 Files:
 
