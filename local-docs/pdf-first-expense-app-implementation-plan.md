@@ -434,7 +434,7 @@ Failure modes:
 
 ## Phase 6: Add recurring detection
 
-### Step 6.1: Persist recurring series
+### Step 6.1: Persist recurring series **COMPLETED**
 
 Files:
 

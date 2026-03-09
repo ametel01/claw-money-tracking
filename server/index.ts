@@ -202,6 +202,21 @@ export function createExpensesApp(service: ExpensesService) {
   )
 
   app.post(
+    '/api/expenses/recurring/recompute',
+    asyncHandler(async (_request, response) => {
+      response.json(service.recomputeRecurringSeries())
+    })
+  )
+
+  app.get(
+    '/api/expenses/recurring/insights',
+    asyncHandler(async (request, response) => {
+      const month = singleQueryValue(request.query.month)
+      response.json(service.getRecurringInsights(month || undefined))
+    })
+  )
+
+  app.post(
     '/api/expenses/import-rows/:id/accept',
     asyncHandler(async (request, response) => {
       response.json(await service.acceptImportRow(requireIdParam(request.params.id, 'import row')))

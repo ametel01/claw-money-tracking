@@ -134,6 +134,28 @@ CREATE TABLE IF NOT EXISTS exp_budget_targets (
   UNIQUE(period_id, category_id)
 );
 
+CREATE TABLE IF NOT EXISTS exp_recurring_series (
+  id INTEGER PRIMARY KEY,
+  merchant_id INTEGER REFERENCES exp_merchants(id) ON DELETE SET NULL,
+  merchant_name TEXT NOT NULL,
+  normalized_key TEXT NOT NULL UNIQUE,
+  cadence TEXT NOT NULL CHECK(cadence IN ('monthly','annual')),
+  average_amount REAL NOT NULL,
+  next_expected_date TEXT,
+  last_transaction_date TEXT,
+  occurrence_count INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS exp_recurring_occurrences (
+  id INTEGER PRIMARY KEY,
+  series_id INTEGER NOT NULL REFERENCES exp_recurring_series(id) ON DELETE CASCADE,
+  transaction_id INTEGER NOT NULL REFERENCES exp_transactions(id) ON DELETE CASCADE,
+  actual_date TEXT NOT NULL,
+  amount REAL NOT NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 INSERT OR IGNORE INTO exp_categories(name, kind) VALUES
   ('Uncategorized','expense'),
   ('Food','expense'),

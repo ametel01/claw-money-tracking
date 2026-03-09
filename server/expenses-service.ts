@@ -154,6 +154,23 @@ export interface BudgetPeriodRecord {
   targets: BudgetTargetRecord[]
 }
 
+export interface RecurringSeriesRecord {
+  id: number
+  merchantId: number | null
+  merchantName: string
+  cadence: 'monthly' | 'annual'
+  averageAmount: number
+  nextExpectedDate: string | null
+  lastTransactionDate: string | null
+  occurrenceCount: number
+}
+
+export interface RecurringInsights {
+  nextCharges: RecurringSeriesRecord[]
+  likelySubscriptions: RecurringSeriesRecord[]
+  projectedRemainingFixedSpend: number
+}
+
 interface TransactionRow {
   id: number
   tx_date: string
@@ -254,6 +271,17 @@ interface BudgetTargetRow {
   category_name: string
   target_amount: number
   actual_amount: number | null
+}
+
+interface RecurringSeriesRow {
+  id: number
+  merchant_id: number | null
+  merchant_name: string
+  cadence: 'monthly' | 'annual'
+  average_amount: number
+  next_expected_date: string | null
+  last_transaction_date: string | null
+  occurrence_count: number
 }
 
 type PdfParseFn = (buffer: Buffer) => Promise<PdfParseResult>
@@ -957,6 +985,173 @@ export class ExpensesService {
 
       db.prepare('DELETE FROM exp_budget_targets WHERE id = ?').run(targetId)
       return this.getBudgetPeriod(target.period_id)
+    })
+  }
+
+  recomputeRecurringSeries(): { ok: boolean; seriesCount: number; occurrenceCount: number } {
+    this.ensureSchema()
+
+    return this.withDatabase((db) => {
+      const rows = db
+        .prepare(
+          `
+          SELECT
+            t.id,
+            t.tx_date,
+            ABS(COALESCE(t.amount_home, t.amount)) AS amount,
+            t.description,
+            t.merchant_id,
+            COALESCE(m.name, t.description) AS merchant_name,
+            COALESCE(c.kind, 'expense') AS category_kind
+          FROM exp_transactions AS t
+          LEFT JOIN exp_merchants AS m ON m.id = t.merchant_id
+          LEFT JOIN exp_categories AS c ON c.id = t.category_id
+          WHERE COALESCE(c.kind, 'expense') = 'expense'
+            AND COALESCE(t.amount_home, t.amount) < 0
+          ORDER BY COALESCE(m.name, t.description) ASC, t.tx_date ASC
+          `
+        )
+        .all() as Array<{
+        id: number
+        tx_date: string
+        amount: number
+        description: string | null
+        merchant_id: number | null
+        merchant_name: string | null
+        category_kind: string
+      }>
+
+      const groups = new Map<
+        string,
+        Array<{
+          id: number
+          txDate: string
+          amount: number
+          merchantId: number | null
+          merchantName: string
+        }>
+      >()
+
+      for (const row of rows) {
+        const merchantName = (row.merchant_name || row.description || '').trim()
+        if (!merchantName || this.looksLikeTransferMerchant(merchantName)) {
+          continue
+        }
+
+        const normalizedKey = this.normalizeMerchantName(merchantName)
+        if (!normalizedKey) {
+          continue
+        }
+
+        const entry = {
+          id: row.id,
+          txDate: row.tx_date,
+          amount: Number(row.amount || 0),
+          merchantId: row.merchant_id,
+          merchantName,
+        }
+        groups.set(normalizedKey, [...(groups.get(normalizedKey) ?? []), entry])
+      }
+
+      const insertSeries = db.prepare(
+        `
+        INSERT INTO exp_recurring_series(
+          merchant_id,
+          merchant_name,
+          normalized_key,
+          cadence,
+          average_amount,
+          next_expected_date,
+          last_transaction_date,
+          occurrence_count
+        )
+        VALUES(?, ?, ?, ?, ?, ?, ?, ?)
+        `
+      )
+      const insertOccurrence = db.prepare(
+        `
+        INSERT INTO exp_recurring_occurrences(series_id, transaction_id, actual_date, amount)
+        VALUES(?, ?, ?, ?)
+        `
+      )
+
+      const runRecompute = db.transaction(() => {
+        db.prepare('DELETE FROM exp_recurring_occurrences').run()
+        db.prepare('DELETE FROM exp_recurring_series').run()
+
+        let seriesCount = 0
+        let occurrenceCount = 0
+
+        for (const [normalizedKey, entries] of groups.entries()) {
+          const candidate = this.detectRecurringCandidate(entries)
+          if (!candidate) {
+            continue
+          }
+
+          const seriesResult = insertSeries.run(
+            candidate.merchantId,
+            candidate.merchantName,
+            normalizedKey,
+            candidate.cadence,
+            candidate.averageAmount,
+            candidate.nextExpectedDate,
+            candidate.lastTransactionDate,
+            candidate.entries.length
+          )
+          const seriesId = Number(seriesResult.lastInsertRowid)
+          seriesCount += 1
+
+          for (const entry of candidate.entries) {
+            insertOccurrence.run(seriesId, entry.id, entry.txDate, entry.amount)
+            occurrenceCount += 1
+          }
+        }
+
+        return { ok: true, seriesCount, occurrenceCount }
+      })
+
+      return runRecompute()
+    })
+  }
+
+  getRecurringInsights(referenceMonth?: string): RecurringInsights {
+    this.ensureSchema()
+
+    return this.withDatabase((db) => {
+      const rows = db
+        .prepare(
+          `
+          SELECT
+            id,
+            merchant_id,
+            merchant_name,
+            cadence,
+            average_amount,
+            next_expected_date,
+            last_transaction_date,
+            occurrence_count
+          FROM exp_recurring_series
+          ORDER BY next_expected_date ASC, merchant_name ASC
+          `
+        )
+        .all() as RecurringSeriesRow[]
+
+      const mapped = rows.map((row) => this.mapRecurringSeries(row))
+      const resolvedMonth =
+        referenceMonth ||
+        mapped.find((row) => row.nextExpectedDate)?.nextExpectedDate?.slice(0, 7) ||
+        null
+      const nextCharges = mapped.slice(0, 6)
+      const likelySubscriptions = mapped.filter((row) => row.cadence === 'monthly').slice(0, 6)
+      const projectedRemainingFixedSpend = mapped
+        .filter((row) => !resolvedMonth || row.nextExpectedDate?.startsWith(resolvedMonth))
+        .reduce((sum, row) => sum + row.averageAmount, 0)
+
+      return {
+        nextCharges,
+        likelySubscriptions,
+        projectedRemainingFixedSpend,
+      }
     })
   }
 
@@ -2460,6 +2655,102 @@ export class ExpensesService {
     return Number(result.lastInsertRowid)
   }
 
+  private detectRecurringCandidate(
+    entries: Array<{
+      id: number
+      txDate: string
+      amount: number
+      merchantId: number | null
+      merchantName: string
+    }>
+  ): {
+    entries: Array<{
+      id: number
+      txDate: string
+      amount: number
+    }>
+    merchantId: number | null
+    merchantName: string
+    cadence: 'monthly' | 'annual'
+    averageAmount: number
+    nextExpectedDate: string
+    lastTransactionDate: string
+  } | null {
+    if (entries.length < 2) {
+      return null
+    }
+
+    const gaps = entries
+      .slice(1)
+      .map((entry, index) => this.daysBetween(entries[index]?.txDate || '', entry.txDate))
+      .filter((gap) => gap > 0)
+    if (gaps.length === 0) {
+      return null
+    }
+
+    const averageGap = gaps.reduce((sum, gap) => sum + gap, 0) / gaps.length
+    const cadence: 'monthly' | 'annual' | null =
+      averageGap >= 25 && averageGap <= 35
+        ? 'monthly'
+        : averageGap >= 330 && averageGap <= 390
+          ? 'annual'
+          : null
+    if (!cadence) {
+      return null
+    }
+
+    const amounts = entries.map((entry) => entry.amount)
+    const averageAmount = amounts.reduce((sum, amount) => sum + amount, 0) / amounts.length
+    const tolerance = Math.max(averageAmount * 0.15, 50)
+    if (amounts.some((amount) => Math.abs(amount - averageAmount) > tolerance)) {
+      return null
+    }
+
+    const lastTransactionDate = entries.at(-1)?.txDate
+    if (!lastTransactionDate) {
+      return null
+    }
+
+    return {
+      entries: entries.map((entry) => ({
+        id: entry.id,
+        txDate: entry.txDate,
+        amount: entry.amount,
+      })),
+      merchantId: entries[0]?.merchantId ?? null,
+      merchantName: entries[0]?.merchantName || 'Recurring merchant',
+      cadence,
+      averageAmount,
+      nextExpectedDate:
+        cadence === 'monthly'
+          ? this.shiftMonth(lastTransactionDate, 1)
+          : this.shiftYear(lastTransactionDate, 1),
+      lastTransactionDate,
+    }
+  }
+
+  private mapRecurringSeries(row: RecurringSeriesRow): RecurringSeriesRecord {
+    return {
+      id: row.id,
+      merchantId: row.merchant_id,
+      merchantName: row.merchant_name,
+      cadence: row.cadence,
+      averageAmount: Number(row.average_amount),
+      nextExpectedDate: row.next_expected_date,
+      lastTransactionDate: row.last_transaction_date,
+      occurrenceCount: Number(row.occurrence_count),
+    }
+  }
+
+  private looksLikeTransferMerchant(value: string): boolean {
+    const normalized = value.toLowerCase()
+    return (
+      normalized.includes('transfer') ||
+      normalized.includes('instapay') ||
+      normalized.includes('savings')
+    )
+  }
+
   private normalizeTransactionDate(rawDate: string): string {
     if (/^\d{4}-\d{2}-\d{2}$/.test(rawDate)) {
       return rawDate
@@ -2885,6 +3176,28 @@ export class ExpensesService {
 
   private today(): string {
     return new Date().toISOString().slice(0, 10)
+  }
+
+  private daysBetween(left: string, right: string): number {
+    const leftDate = new Date(`${left}T00:00:00Z`)
+    const rightDate = new Date(`${right}T00:00:00Z`)
+    if (Number.isNaN(leftDate.getTime()) || Number.isNaN(rightDate.getTime())) {
+      return 0
+    }
+
+    return Math.round((rightDate.getTime() - leftDate.getTime()) / (24 * 60 * 60 * 1000))
+  }
+
+  private shiftMonth(dateValue: string, count: number): string {
+    const date = new Date(`${dateValue}T00:00:00Z`)
+    date.setUTCMonth(date.getUTCMonth() + count)
+    return date.toISOString().slice(0, 10)
+  }
+
+  private shiftYear(dateValue: string, count: number): string {
+    const date = new Date(`${dateValue}T00:00:00Z`)
+    date.setUTCFullYear(date.getUTCFullYear() + count)
+    return date.toISOString().slice(0, 10)
   }
 
   private getPreviousMonthKey(monthValue: string): string | null {
