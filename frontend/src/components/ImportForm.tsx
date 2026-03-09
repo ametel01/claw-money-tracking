@@ -7,11 +7,12 @@ import { type FormEvent, useRef, useState } from 'react'
 
 interface ImportFormProps {
   onImported: () => Promise<void>
+  latestBatchSummary?: string
 }
 
 type Status = { tone: 'idle' | 'pending' | 'success' | 'error'; message: string }
 
-export function ImportForm({ onImported }: ImportFormProps) {
+export function ImportForm({ onImported, latestBatchSummary }: ImportFormProps) {
   const [status, setStatus] = useState<Status>({ tone: 'idle', message: '' })
   const formRef = useRef<HTMLFormElement>(null)
 
@@ -72,6 +73,9 @@ export function ImportForm({ onImported }: ImportFormProps) {
       <Button type="submit" disabled={status.tone === 'pending'} className="w-full">
         {status.tone === 'pending' ? 'Parsing…' : 'Upload and parse'}
       </Button>
+      {latestBatchSummary ? (
+        <p className="text-[0.65rem] leading-relaxed text-muted-foreground">{latestBatchSummary}</p>
+      ) : null}
       <StatusLine status={status} />
     </form>
   )

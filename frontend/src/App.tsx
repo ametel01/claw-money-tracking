@@ -1,17 +1,23 @@
 import {
+  acceptImportRow,
   getCashFlow,
   getCategoryBreakdown,
+  getImportBatch,
+  getImportBatches,
   getMerchantLeaderboard,
   getMonthlyAnalyticsSummary,
   getOverview,
   getSpendingPaceModel,
   getTransactions,
+  rejectImportRow,
   toErrorMessage,
 } from '@/api/expenses'
 import { CashFlowCard } from '@/components/CashFlowCard'
 import { CategoryPie } from '@/components/CategoryPie'
 import { CurrencyControls } from '@/components/CurrencyControls'
+import { ImportBatchStatus } from '@/components/ImportBatchStatus'
 import { ImportForm } from '@/components/ImportForm'
+import { ImportReviewQueue } from '@/components/ImportReviewQueue'
 import { KpiCards } from '@/components/KpiCards'
 import { LineChart } from '@/components/LineChart'
 import { MerchantLeaderboardCard } from '@/components/MerchantLeaderboardCard'
@@ -24,6 +30,7 @@ import { monthLabel } from '@/lib/format'
 import type {
   CashFlowPoint,
   CurrencyViewMode,
+  ImportBatchDetail,
   LineChartModel,
   MerchantLeaderboardItem,
   MonthSummary,
@@ -41,6 +48,8 @@ interface DashboardState {
   lineChartModel: LineChartModel
   cashFlow: CashFlowPoint[]
   merchantLeaderboard: MerchantLeaderboardItem[]
+  latestImportBatch: ImportBatchDetail | null
+  busyReviewRowId: number | null
   activeMonth: string | null
   viewMode: CurrencyViewMode
   loadStatus: { tone: 'loading' | 'success' | 'error'; message: string }
@@ -72,6 +81,8 @@ export function App() {
     lineChartModel: EMPTY_LINE_CHART,
     cashFlow: [],
     merchantLeaderboard: [],
+    latestImportBatch: null,
+    busyReviewRowId: null,
     activeMonth: null,
     viewMode: 'home',
     loadStatus: { tone: 'loading', message: 'Loading dashboard…' },
@@ -100,17 +111,21 @@ export function App() {
     }))
 
     try {
-      const [overview, monthlySummary, cashFlow] = await Promise.all([
+      const [overview, monthlySummary, cashFlow, latestBatches] = await Promise.all([
         getOverview(),
         getMonthlyAnalyticsSummary(),
         getCashFlow(),
+        getImportBatches(1),
       ])
       const months = monthlySummaryToMonthTabs(monthlySummary)
       const selectedMonth =
         activeMonthRef.current && months.some((month) => month.key === activeMonthRef.current)
           ? activeMonthRef.current
           : (months[0]?.key ?? null)
-      const monthData = await loadMonthData(selectedMonth)
+      const [monthData, latestImportBatch] = await Promise.all([
+        loadMonthData(selectedMonth),
+        latestBatches[0] ? getImportBatch(latestBatches[0].id) : Promise.resolve(null),
+      ])
       activeMonthRef.current = selectedMonth
 
       setState((prev) => ({
@@ -122,6 +137,7 @@ export function App() {
         lineChartModel: monthData.lineChartModel,
         cashFlow,
         merchantLeaderboard: monthData.merchantLeaderboard,
+        latestImportBatch,
         activeMonth: selectedMonth,
         loadStatus: {
           tone: 'success',
@@ -171,15 +187,54 @@ export function App() {
     [loadMonthData]
   )
 
+  const handleReviewAction = useCallback(
+    async (rowId: number, action: 'accept' | 'reject') => {
+      setState((prev) => ({ ...prev, busyReviewRowId: rowId }))
+
+      try {
+        if (action === 'accept') {
+          await acceptImportRow(rowId)
+        } else {
+          await rejectImportRow(rowId)
+        }
+
+        await refreshDashboard()
+      } catch (error) {
+        setState((prev) => ({
+          ...prev,
+          busyReviewRowId: null,
+          loadStatus: { tone: 'error', message: toErrorMessage(error) },
+        }))
+        return
+      }
+
+      setState((prev) => ({ ...prev, busyReviewRowId: null }))
+    },
+    [refreshDashboard]
+  )
+
   useEffect(() => {
     void refreshDashboard()
   }, [refreshDashboard])
 
-  const { overview, transactions, months, pieSegments, activeMonth, viewMode, loadStatus } = state
+  const {
+    overview,
+    transactions,
+    months,
+    pieSegments,
+    activeMonth,
+    viewMode,
+    loadStatus,
+    latestImportBatch,
+    busyReviewRowId,
+  } = state
   const loading = loadStatus.tone === 'loading'
   const lineChartModel = state.lineChartModel
   const cashFlow = state.cashFlow
   const merchantLeaderboard = state.merchantLeaderboard
+  const latestBatchSummary = latestImportBatch
+    ? `${latestImportBatch.counts.needs_review} need review, ${latestImportBatch.counts.duplicate} duplicates in the latest batch.`
+    : undefined
 
   return (
     <div className="w-full max-w-[1320px] mx-auto px-4 py-6 pb-16">
@@ -251,7 +306,13 @@ export function App() {
               <CardDescription>Upload a bank PDF to parse and import transactions.</CardDescription>
             </CardHeader>
             <CardContent>
-              <ImportForm onImported={refreshDashboard} />
+              <div className="grid gap-3">
+                <ImportForm
+                  onImported={refreshDashboard}
+                  {...(latestBatchSummary ? { latestBatchSummary } : {})}
+                />
+                <ImportBatchStatus batch={latestImportBatch} />
+              </div>
             </CardContent>
           </Card>
         </section>
@@ -317,6 +378,28 @@ export function App() {
             </CardHeader>
             <CardContent>
               <RecurringPreviewCard />
+            </CardContent>
+          </Card>
+        </section>
+
+        <section className="col-span-12">
+          <Card>
+            <CardHeader>
+              <CardDescription className="text-[0.6rem] font-bold uppercase tracking-[0.16em]">
+                Review
+              </CardDescription>
+              <CardTitle>Import review queue</CardTitle>
+              <CardDescription>
+                Accept or reject `needs_review` and `duplicate` rows from the latest import batch.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ImportReviewQueue
+                batch={latestImportBatch}
+                busyRowId={busyReviewRowId}
+                onAccept={(rowId) => handleReviewAction(rowId, 'accept')}
+                onReject={(rowId) => handleReviewAction(rowId, 'reject')}
+              />
             </CardContent>
           </Card>
         </section>

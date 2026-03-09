@@ -356,7 +356,7 @@ Failure modes:
 
 - If recurring preview ships before merchant normalization, results will be noisy and not trustworthy.
 
-### Step 4.2: Add review visibility to the dashboard
+### Step 4.2: Add review visibility to the dashboard **COMPLETED**
 
 Files:
 
