@@ -322,7 +322,8 @@ export class ExpensesService {
         const categoryId = this.pickCategory(
           db,
           row.parsed_description || '',
-          Number(row.parsed_amount)
+          Number(row.parsed_amount),
+          row.account_id
         )
         const amountOriginal = Number(row.parsed_amount)
         const amountHome = amountOriginal * fxRate
@@ -621,7 +622,8 @@ export class ExpensesService {
             const categoryId = this.pickCategory(
               db,
               transactionCandidate.description,
-              transactionCandidate.amount
+              transactionCandidate.amount,
+              accountId
             )
             const merchantId = this.resolveMerchant(db, transactionCandidate.description)
             const fxRate = await this.getFxRate(
@@ -1926,7 +1928,12 @@ export class ExpensesService {
     return this.smartTitleCase(merchantCandidate.replace(/[^\w\s&/-]+/g, ' ').replace(/\s+/g, ' '))
   }
 
-  private pickCategory(db: Database.Database, description: string, amount: number): number | null {
+  private pickCategory(
+    db: Database.Database,
+    description: string,
+    amount: number,
+    accountId: number | null
+  ): number | null {
     const normalizedDescription = (description || '').toLowerCase()
     const rows = db
       .prepare(
@@ -1934,10 +1941,18 @@ export class ExpensesService {
         SELECT category_id, match_type, pattern
         FROM exp_categorization_rules
         WHERE active = 1
-        ORDER BY priority ASC, id ASC
+          AND (account_id = ? OR account_id IS NULL)
+        ORDER BY
+          CASE WHEN account_id = ? THEN 0 ELSE 1 END ASC,
+          priority ASC,
+          id ASC
         `
       )
-      .all() as Array<{ category_id: number; match_type: string | null; pattern: string | null }>
+      .all(accountId, accountId) as Array<{
+      category_id: number
+      match_type: string | null
+      pattern: string | null
+    }>
 
     for (const row of rows) {
       const matchType = (row.match_type || 'contains').toLowerCase()

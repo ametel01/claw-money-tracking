@@ -188,7 +188,7 @@ Failure modes:
 - Over-aggressive normalization will merge distinct merchants.
 - Writing normalized merchant names back into `description` will destroy raw import fidelity.
 
-### Step 2.2: Honor account-scoped categorization rules
+### Step 2.2: Honor account-scoped categorization rules **COMPLETED**
 
 Files:
 

@@ -493,7 +493,7 @@ test('importPdfStatement populates merchant_id without rewriting descriptions', 
   )
 })
 
-test('regression: pickCategory ignores account-scoped rules', async (t) => {
+test('importPdfStatement prefers account-scoped categorization rules over global rules', async (t) => {
   const root = createWorkspace()
   t.after(() => {
     rmSync(root, { recursive: true, force: true })
@@ -518,6 +518,13 @@ test('regression: pickCategory ignores account-scoped rules', async (t) => {
       }
     ).id
   )
+  const groceriesCategoryId = Number(
+    (
+      db.prepare('SELECT id FROM exp_categories WHERE name = ?').get('Groceries') as {
+        id: number
+      }
+    ).id
+  )
   const accountAId = Number(
     db.prepare('INSERT INTO exp_accounts(name, currency) VALUES(?, ?)').run('Personal PHP', 'PHP')
       .lastInsertRowid
@@ -533,6 +540,12 @@ test('regression: pickCategory ignores account-scoped rules', async (t) => {
     VALUES(?, ?, ?, ?, ?, 1)
     `
   ).run(10, 'contains', 'netflix', diningCategoryId, accountAId)
+  db.prepare(
+    `
+    INSERT INTO exp_categorization_rules(priority, match_type, pattern, category_id, account_id, active)
+    VALUES(?, ?, ?, ?, ?, 1)
+    `
+  ).run(20, 'contains', 'netflix', groceriesCategoryId, null)
   db.prepare(
     `
     INSERT INTO exp_categorization_rules(priority, match_type, pattern, category_id, account_id, active)
@@ -558,7 +571,7 @@ test('regression: pickCategory ignores account-scoped rules', async (t) => {
 
   assert.deepEqual(rows, [
     { account_name: 'Personal PHP', category_name: 'Dining' },
-    { account_name: 'Joint PHP', category_name: 'Dining' },
+    { account_name: 'Joint PHP', category_name: 'Subscriptions' },
   ])
 })
 
