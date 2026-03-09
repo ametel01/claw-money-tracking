@@ -301,7 +301,7 @@ Failure modes:
 - If new analytics endpoints compute from `amount` instead of `amount_home`, multi-currency dashboards will regress.
 - If query filters are inconsistent across endpoints, cards will disagree with each other.
 
-### Step 3.2: Migrate the dashboard off client-only aggregates
+### Step 3.2: Migrate the dashboard off client-only aggregates **COMPLETED**
 
 Files:
 

@@ -48,8 +48,9 @@ export function createExpensesApp(service: ExpensesService) {
   app.get(
     '/api/expenses/transactions',
     asyncHandler(async (request, response) => {
-      const limit = safeInt(request.query.limit, 50, 1, 400)
-      response.json(service.listTransactions(limit))
+      const limit = safeInt(request.query.limit, 50, 1, 50000)
+      const month = singleQueryValue(request.query.month)
+      response.json(service.listTransactions(limit, month))
     })
   )
 
@@ -139,6 +140,14 @@ export function createExpensesApp(service: ExpensesService) {
       const limit = safeInt(request.query.limit, 8, 1, 20)
       const month = singleQueryValue(request.query.month)
       response.json(service.getMerchantLeaderboard(month || undefined, limit))
+    })
+  )
+
+  app.get(
+    '/api/expenses/analytics/spending-pace',
+    asyncHandler(async (request, response) => {
+      const month = singleQueryValue(request.query.month)
+      response.json(service.getSpendingPaceModel(month))
     })
   )
 

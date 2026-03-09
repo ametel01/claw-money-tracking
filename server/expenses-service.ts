@@ -3,6 +3,8 @@ import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import Database from 'better-sqlite3'
+import { buildSpendingPaceChart } from '../frontend/src/lib/analytics'
+import type { LineChartModel, TransactionRecord } from '../frontend/src/types'
 
 export interface ParsedExpenseTransaction {
   tx_date: string
@@ -414,7 +416,47 @@ export class ExpensesService {
     })
   }
 
-  listTransactions(limit: number): TransactionRow[] {
+  getSpendingPaceModel(month: string | null): LineChartModel {
+    this.ensureSchema()
+
+    return this.withDatabase((db) => {
+      const resolvedMonth = month || this.getMonthlyAnalyticsSummary(1)[0]?.month || null
+      if (!resolvedMonth) {
+        return buildSpendingPaceChart([], null)
+      }
+
+      const comparisonMonth = this.getPreviousMonthKey(resolvedMonth)
+      const rows = db
+        .prepare(
+          `
+          SELECT
+            t.id,
+            t.tx_date,
+            t.description,
+            t.amount,
+            t.amount_original,
+            t.amount_home,
+            t.currency,
+            t.fx_rate_used,
+            a.name AS account_name,
+            a.currency AS account_currency,
+            c.name AS category_name,
+            COALESCE(c.kind, 'expense') AS category_kind
+          FROM exp_transactions AS t
+          LEFT JOIN exp_accounts AS a ON a.id = t.account_id
+          LEFT JOIN exp_categories AS c ON c.id = t.category_id
+          WHERE substr(t.tx_date, 1, 7) = ?
+             OR (? IS NOT NULL AND substr(t.tx_date, 1, 7) = ?)
+          ORDER BY t.tx_date ASC, t.id ASC
+          `
+        )
+        .all(resolvedMonth, comparisonMonth, comparisonMonth) as TransactionRecord[]
+
+      return buildSpendingPaceChart(rows, resolvedMonth)
+    })
+  }
+
+  listTransactions(limit: number, month?: string | null): TransactionRow[] {
     this.ensureSchema()
 
     return this.withDatabase(
@@ -438,11 +480,12 @@ export class ExpensesService {
           FROM exp_transactions AS t
           LEFT JOIN exp_accounts AS a ON a.id = t.account_id
           LEFT JOIN exp_categories AS c ON c.id = t.category_id
+          WHERE (? IS NULL OR substr(t.tx_date, 1, 7) = ?)
           ORDER BY t.tx_date DESC, t.id DESC
           LIMIT ?
           `
           )
-          .all(limit) as TransactionRow[]
+          .all(month || null, month || null, limit) as TransactionRow[]
     )
   }
 
@@ -2627,6 +2670,18 @@ export class ExpensesService {
 
   private today(): string {
     return new Date().toISOString().slice(0, 10)
+  }
+
+  private getPreviousMonthKey(monthValue: string): string | null {
+    const [yearRaw, monthRaw] = monthValue.split('-')
+    const year = Number(yearRaw)
+    const month = Number(monthRaw)
+    if (!year || !month) {
+      return null
+    }
+
+    const previous = new Date(year, month - 2, 1)
+    return `${previous.getFullYear()}-${String(previous.getMonth() + 1).padStart(2, '0')}`
   }
 
   private normalizeOptionalText(value: string | null | undefined): string | null {

@@ -1,7 +1,9 @@
 import type {
+  CategoryBreakdownItem,
   DashboardAnalytics,
   LineChartModel,
   MonthSummary,
+  MonthlyAnalyticsSummary,
   PieSegment,
   TransactionRecord,
 } from '../types'
@@ -20,6 +22,23 @@ const PIE_COLORS = [
   '#8890a0',
 ]
 const DEFAULT_COLOR = '#0f5bd8'
+
+export function monthlySummaryToMonthTabs(rows: MonthlyAnalyticsSummary[]): MonthSummary[] {
+  return rows.map((row) => ({
+    key: row.month,
+    label: monthLabel(row.month),
+    count: row.transactionCount,
+  }))
+}
+
+export function categoryBreakdownToPieSegments(rows: CategoryBreakdownItem[]): PieSegment[] {
+  return rows.map((row, index) => ({
+    name: row.categoryName,
+    value: row.total,
+    pct: row.percentage,
+    color: PIE_COLORS[index % PIE_COLORS.length] ?? DEFAULT_COLOR,
+  }))
+}
 
 export function buildDashboardAnalytics(rows: TransactionRecord[]): DashboardAnalytics {
   const months = buildMonths(rows)

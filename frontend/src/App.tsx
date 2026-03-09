@@ -1,4 +1,11 @@
-import { getOverview, getTransactions, toErrorMessage } from '@/api/expenses'
+import {
+  getCategoryBreakdown,
+  getMonthlyAnalyticsSummary,
+  getOverview,
+  getSpendingPaceModel,
+  getTransactions,
+  toErrorMessage,
+} from '@/api/expenses'
 import { CategoryPie } from '@/components/CategoryPie'
 import { CurrencyControls } from '@/components/CurrencyControls'
 import { ImportForm } from '@/components/ImportForm'
@@ -7,39 +14,71 @@ import { LineChart } from '@/components/LineChart'
 import { MonthTabs } from '@/components/MonthTabs'
 import { TransactionList } from '@/components/TransactionList'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { buildDashboardAnalytics, buildSpendingPaceChart } from '@/lib/analytics'
+import { categoryBreakdownToPieSegments, monthlySummaryToMonthTabs } from '@/lib/analytics'
 import { monthLabel } from '@/lib/format'
 import type {
   CurrencyViewMode,
-  DashboardAnalytics,
+  LineChartModel,
+  MonthSummary,
   OverviewResponse,
+  PieSegment,
   TransactionRecord,
 } from '@/types'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 interface DashboardState {
   overview: OverviewResponse | null
   transactions: TransactionRecord[]
-  analytics: DashboardAnalytics
+  months: MonthSummary[]
+  pieSegments: PieSegment[]
+  lineChartModel: LineChartModel
   activeMonth: string | null
   viewMode: CurrencyViewMode
   loadStatus: { tone: 'loading' | 'success' | 'error'; message: string }
 }
 
-const EMPTY_ANALYTICS: DashboardAnalytics = {
-  months: [],
-  pieSegments: [],
+const EMPTY_LINE_CHART: LineChartModel = {
+  monthKey: null,
+  monthLabel: '',
+  comparisonMonthLabel: null,
+  points: [],
+  maxY: 1,
+  total: 0,
+  comparisonTotal: null,
+  comparisonToDate: null,
+  projectedTotal: null,
+  daysElapsed: 0,
+  daysInMonth: 0,
+  isCurrentMonth: false,
+  largestDay: null,
 }
 
 export function App() {
+  const activeMonthRef = useRef<string | null>(null)
   const [state, setState] = useState<DashboardState>({
     overview: null,
     transactions: [],
-    analytics: EMPTY_ANALYTICS,
+    months: [],
+    pieSegments: [],
+    lineChartModel: EMPTY_LINE_CHART,
     activeMonth: null,
     viewMode: 'home',
     loadStatus: { tone: 'loading', message: 'Loading dashboard…' },
   })
+
+  const loadMonthData = useCallback(async (month: string | null) => {
+    const [transactions, breakdown, lineChartModel] = await Promise.all([
+      getTransactions(50000, month),
+      getCategoryBreakdown(month ?? undefined),
+      getSpendingPaceModel(month),
+    ])
+
+    return {
+      transactions,
+      pieSegments: categoryBreakdownToPieSegments(breakdown),
+      lineChartModel,
+    }
+  }, [])
 
   const refreshDashboard = useCallback(async () => {
     setState((prev) => ({
@@ -48,22 +87,31 @@ export function App() {
     }))
 
     try {
-      const [overview, transactions] = await Promise.all([getOverview(), getTransactions()])
-      const analytics = buildDashboardAnalytics(transactions)
-      const firstMonth = analytics.months[0]?.key ?? null
+      const [overview, monthlySummary] = await Promise.all([
+        getOverview(),
+        getMonthlyAnalyticsSummary(),
+      ])
+      const months = monthlySummaryToMonthTabs(monthlySummary)
+      const selectedMonth =
+        activeMonthRef.current && months.some((month) => month.key === activeMonthRef.current)
+          ? activeMonthRef.current
+          : (months[0]?.key ?? null)
+      const monthData = await loadMonthData(selectedMonth)
+      activeMonthRef.current = selectedMonth
 
       setState((prev) => ({
         ...prev,
         overview,
-        transactions,
-        analytics,
-        activeMonth:
-          prev.activeMonth && analytics.months.some((m) => m.key === prev.activeMonth)
-            ? prev.activeMonth
-            : firstMonth,
+        transactions: monthData.transactions,
+        months,
+        pieSegments: monthData.pieSegments,
+        lineChartModel: monthData.lineChartModel,
+        activeMonth: selectedMonth,
         loadStatus: {
           tone: 'success',
-          message: `Loaded ${transactions.length} transactions.`,
+          message: `Loaded ${monthData.transactions.length} transactions for ${
+            selectedMonth ? monthLabel(selectedMonth) : 'the ledger'
+          }.`,
         },
       }))
     } catch (error) {
@@ -72,15 +120,47 @@ export function App() {
         loadStatus: { tone: 'error', message: toErrorMessage(error) },
       }))
     }
-  }, [])
+  }, [loadMonthData])
+
+  const handleMonthChange = useCallback(
+    async (month: string) => {
+      activeMonthRef.current = month
+      setState((prev) => ({
+        ...prev,
+        activeMonth: month,
+        loadStatus: { tone: 'loading', message: `Loading ${monthLabel(month)}…` },
+      }))
+
+      try {
+        const monthData = await loadMonthData(month)
+        setState((prev) => ({
+          ...prev,
+          activeMonth: month,
+          transactions: monthData.transactions,
+          pieSegments: monthData.pieSegments,
+          lineChartModel: monthData.lineChartModel,
+          loadStatus: {
+            tone: 'success',
+            message: `Loaded ${monthData.transactions.length} transactions for ${monthLabel(month)}.`,
+          },
+        }))
+      } catch (error) {
+        setState((prev) => ({
+          ...prev,
+          loadStatus: { tone: 'error', message: toErrorMessage(error) },
+        }))
+      }
+    },
+    [loadMonthData]
+  )
 
   useEffect(() => {
     void refreshDashboard()
   }, [refreshDashboard])
 
-  const { overview, transactions, analytics, activeMonth, viewMode, loadStatus } = state
+  const { overview, transactions, months, pieSegments, activeMonth, viewMode, loadStatus } = state
   const loading = loadStatus.tone === 'loading'
-  const lineChartModel = buildSpendingPaceChart(transactions, activeMonth)
+  const lineChartModel = state.lineChartModel
 
   return (
     <div className="w-full max-w-[1320px] mx-auto px-4 py-6 pb-16">
@@ -136,7 +216,7 @@ export function App() {
               <CardTitle>Category split</CardTitle>
             </CardHeader>
             <CardContent>
-              <CategoryPie segments={analytics.pieSegments} />
+              <CategoryPie segments={pieSegments} />
             </CardContent>
           </Card>
         </section>
@@ -171,9 +251,9 @@ export function App() {
             </CardHeader>
             <CardContent className="flex flex-col gap-4">
               <MonthTabs
-                months={analytics.months}
+                months={months}
                 activeMonth={activeMonth}
-                onMonthChange={(month) => setState((prev) => ({ ...prev, activeMonth: month }))}
+                onMonthChange={(month) => void handleMonthChange(month)}
               />
               <LineChart model={lineChartModel} />
             </CardContent>

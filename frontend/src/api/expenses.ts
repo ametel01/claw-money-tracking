@@ -8,6 +8,7 @@ import type {
   ImportBatchSummary,
   ImportPdfResponse,
   ImportRowActionResponse,
+  LineChartModel,
   MerchantLeaderboardItem,
   MonthlyAnalyticsSummary,
   OverviewResponse,
@@ -48,8 +49,13 @@ export function getOverview(): Promise<OverviewResponse> {
   return requestJson<OverviewResponse>('/api/expenses/overview')
 }
 
-export function getTransactions(limit = 400): Promise<TransactionRecord[]> {
-  return requestJson<TransactionRecord[]>(`/api/expenses/transactions?limit=${limit}`)
+export function getTransactions(limit = 400, month?: string | null): Promise<TransactionRecord[]> {
+  const query = new URLSearchParams({ limit: String(limit) })
+  if (month) {
+    query.set('month', month)
+  }
+
+  return requestJson<TransactionRecord[]>(`/api/expenses/transactions?${query.toString()}`)
 }
 
 export function getMonthlyAnalyticsSummary(limit = 12): Promise<MonthlyAnalyticsSummary[]> {
@@ -85,6 +91,16 @@ export function getMerchantLeaderboard(
   return requestJson<MerchantLeaderboardItem[]>(
     `/api/expenses/analytics/merchant-leaderboard?${query.toString()}`
   )
+}
+
+export function getSpendingPaceModel(month?: string | null): Promise<LineChartModel> {
+  const query = new URLSearchParams()
+  if (month) {
+    query.set('month', month)
+  }
+
+  const suffix = query.size > 0 ? `?${query.toString()}` : ''
+  return requestJson<LineChartModel>(`/api/expenses/analytics/spending-pace${suffix}`)
 }
 
 export function updateUsdPhpRate(rate: number): Promise<ApiStatusResponse> {

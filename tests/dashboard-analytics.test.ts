@@ -268,3 +268,86 @@ test('server analytics endpoints aggregate monthly summaries from amount_home', 
     },
   ])
 })
+
+test('server spending pace model matches the existing chart semantics', (t) => {
+  const root = createWorkspace()
+  t.after(() => {
+    rmSync(root, { recursive: true, force: true })
+  })
+
+  const service = new ExpensesService(root)
+  service.ensureSchema()
+
+  const db = openWorkspaceDb(root)
+  t.after(() => {
+    db.close()
+  })
+
+  const accountId = Number(
+    db.prepare('INSERT INTO exp_accounts(name, currency) VALUES(?, ?)').run('Pace Wallet', 'PHP')
+      .lastInsertRowid
+  )
+  const groceriesCategoryId = Number(
+    (db.prepare('SELECT id FROM exp_categories WHERE name = ?').get('Groceries') as { id: number })
+      .id
+  )
+  const billsCategoryId = Number(
+    (db.prepare('SELECT id FROM exp_categories WHERE name = ?').get('Bills') as { id: number }).id
+  )
+  const insertTransaction = db.prepare(
+    `
+    INSERT INTO exp_transactions(
+      account_id,
+      tx_date,
+      posted_date,
+      description,
+      category_id,
+      amount,
+      currency,
+      amount_original,
+      amount_home,
+      fx_rate_used,
+      fx_date,
+      source_hash
+    )
+    VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `
+  )
+  const rows: TransactionRecord[] = [
+    makeExpense(1, '2026-02-01', -100, 'Groceries', 'Groceries'),
+    makeExpense(2, '2026-02-03', -50, 'Coffee', 'Dining'),
+    makeExpense(3, '2026-02-10', -200, 'Rent', 'Bills'),
+    makeExpense(4, '2026-01-01', -80, 'Week one groceries', 'Groceries'),
+    makeExpense(5, '2026-01-05', -120, 'Utilities', 'Bills'),
+  ]
+
+  for (const row of rows) {
+    insertTransaction.run(
+      accountId,
+      row.tx_date,
+      row.tx_date,
+      row.description,
+      row.category_name === 'Bills' ? billsCategoryId : groceriesCategoryId,
+      row.amount,
+      'PHP',
+      row.amount_original,
+      row.amount_home,
+      1,
+      row.tx_date,
+      `pace-${row.id}`
+    )
+  }
+
+  const model = service.getSpendingPaceModel('2026-02')
+
+  assert.equal(model.monthKey, '2026-02')
+  assert.equal(model.points.length, 28)
+  assert.equal(model.total, 350)
+  assert.equal(model.comparisonTotal, 200)
+  assert.equal(model.projectedTotal, null)
+  assert.equal(model.points[2]?.current, 150)
+  assert.equal(model.points[2]?.previous, 80)
+  assert.equal(model.largestDay?.day, 10)
+  assert.equal(model.largestDay?.total, 200)
+  assert.equal(model.largestDay?.transactions[0]?.description, 'Rent')
+})
