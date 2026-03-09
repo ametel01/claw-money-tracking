@@ -110,6 +110,30 @@ CREATE TABLE IF NOT EXISTS exp_meta (
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS exp_budgets (
+  id INTEGER PRIMARY KEY,
+  name TEXT NOT NULL UNIQUE,
+  currency TEXT NOT NULL DEFAULT 'PHP',
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS exp_budget_periods (
+  id INTEGER PRIMARY KEY,
+  budget_id INTEGER NOT NULL REFERENCES exp_budgets(id) ON DELETE CASCADE,
+  month TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(budget_id, month)
+);
+
+CREATE TABLE IF NOT EXISTS exp_budget_targets (
+  id INTEGER PRIMARY KEY,
+  period_id INTEGER NOT NULL REFERENCES exp_budget_periods(id) ON DELETE CASCADE,
+  category_id INTEGER NOT NULL REFERENCES exp_categories(id) ON DELETE CASCADE,
+  target_amount REAL NOT NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(period_id, category_id)
+);
+
 INSERT OR IGNORE INTO exp_categories(name, kind) VALUES
   ('Uncategorized','expense'),
   ('Food','expense'),

@@ -151,6 +151,56 @@ export function createExpensesApp(service: ExpensesService) {
     })
   )
 
+  app.get(
+    '/api/expenses/budget-periods',
+    asyncHandler(async (_request, response) => {
+      response.json(service.listBudgetPeriods())
+    })
+  )
+
+  app.post(
+    '/api/expenses/budget-periods',
+    asyncHandler(async (request, response) => {
+      const body = isObject(request.body) ? request.body : {}
+      const month = typeof body.month === 'string' ? body.month : ''
+      response.json(
+        service.createBudgetPeriod({
+          month,
+          ...(typeof body.budgetName === 'string' ? { budgetName: body.budgetName } : {}),
+          ...(typeof body.currency === 'string' ? { currency: body.currency } : {}),
+        })
+      )
+    })
+  )
+
+  app.get(
+    '/api/expenses/budget-periods/:id',
+    asyncHandler(async (request, response) => {
+      response.json(service.getBudgetPeriod(requireIdParam(request.params.id, 'budget period')))
+    })
+  )
+
+  app.post(
+    '/api/expenses/budget-periods/:id/targets',
+    asyncHandler(async (request, response) => {
+      const body = isObject(request.body) ? request.body : {}
+      response.json(
+        service.upsertBudgetTarget(
+          requireIdParam(request.params.id, 'budget period'),
+          requireBodyId(body.categoryId, 'category'),
+          requireBodyNumber(body.targetAmount, 'target amount')
+        )
+      )
+    })
+  )
+
+  app.delete(
+    '/api/expenses/budget-targets/:id',
+    asyncHandler(async (request, response) => {
+      response.json(service.deleteBudgetTarget(requireIdParam(request.params.id, 'budget target')))
+    })
+  )
+
   app.post(
     '/api/expenses/import-rows/:id/accept',
     asyncHandler(async (request, response) => {
@@ -273,6 +323,15 @@ function requireBodyId(raw: unknown, label: string): number {
 
   if (!Number.isInteger(parsed) || parsed <= 0) {
     throw new Error(`invalid ${label} id`)
+  }
+
+  return parsed
+}
+
+function requireBodyNumber(raw: unknown, label: string): number {
+  const parsed = typeof raw === 'number' ? raw : typeof raw === 'string' ? Number(raw) : Number.NaN
+  if (!Number.isFinite(parsed)) {
+    throw new Error(`invalid ${label}`)
   }
 
   return parsed

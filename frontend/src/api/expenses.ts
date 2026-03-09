@@ -1,6 +1,7 @@
 import type {
   ApiStatusResponse,
   BackfillFxResponse,
+  BudgetPeriodRecord,
   CashFlowPoint,
   CategorizationRuleRecord,
   CategoryBreakdownItem,
@@ -101,6 +102,51 @@ export function getSpendingPaceModel(month?: string | null): Promise<LineChartMo
 
   const suffix = query.size > 0 ? `?${query.toString()}` : ''
   return requestJson<LineChartModel>(`/api/expenses/analytics/spending-pace${suffix}`)
+}
+
+export function getBudgetPeriods(): Promise<BudgetPeriodRecord[]> {
+  return requestJson<BudgetPeriodRecord[]>('/api/expenses/budget-periods')
+}
+
+export function createBudgetPeriod(input: {
+  month: string
+  budgetName?: string
+  currency?: string
+}): Promise<BudgetPeriodRecord> {
+  return requestJson<BudgetPeriodRecord>('/api/expenses/budget-periods', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(input),
+  })
+}
+
+export function getBudgetPeriod(periodId: number): Promise<BudgetPeriodRecord> {
+  return requestJson<BudgetPeriodRecord>(`/api/expenses/budget-periods/${periodId}`)
+}
+
+export function upsertBudgetTarget(input: {
+  periodId: number
+  categoryId: number
+  targetAmount: number
+}): Promise<BudgetPeriodRecord> {
+  return requestJson<BudgetPeriodRecord>(`/api/expenses/budget-periods/${input.periodId}/targets`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      categoryId: input.categoryId,
+      targetAmount: input.targetAmount,
+    }),
+  })
+}
+
+export function deleteBudgetTarget(targetId: number): Promise<BudgetPeriodRecord> {
+  return requestJson<BudgetPeriodRecord>(`/api/expenses/budget-targets/${targetId}`, {
+    method: 'DELETE',
+  })
 }
 
 export function updateUsdPhpRate(rate: number): Promise<ApiStatusResponse> {

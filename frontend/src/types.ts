@@ -127,6 +127,25 @@ export interface MerchantLeaderboardItem {
   lastTransactionDate: string | null
 }
 
+export interface BudgetTargetRecord {
+  id: number
+  categoryId: number
+  categoryName: string
+  targetAmount: number
+  actualAmount: number
+  remainingAmount: number
+}
+
+export interface BudgetPeriodRecord {
+  id: number
+  budgetId: number
+  budgetName: string
+  month: string
+  currency: string
+  createdAt: string
+  targets: BudgetTargetRecord[]
+}
+
 export interface BackfillFxResponse extends ApiStatusResponse {
   updated?: number
 }

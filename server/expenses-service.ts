@@ -135,6 +135,25 @@ export interface MerchantLeaderboardItem {
   lastTransactionDate: string | null
 }
 
+export interface BudgetTargetRecord {
+  id: number
+  categoryId: number
+  categoryName: string
+  targetAmount: number
+  actualAmount: number
+  remainingAmount: number
+}
+
+export interface BudgetPeriodRecord {
+  id: number
+  budgetId: number
+  budgetName: string
+  month: string
+  currency: string
+  createdAt: string
+  targets: BudgetTargetRecord[]
+}
+
 interface TransactionRow {
   id: number
   tx_date: string
@@ -218,6 +237,23 @@ interface CategorizationRuleRow {
   account_name: string | null
   active: number
   created_at: string
+}
+
+interface BudgetPeriodRow {
+  id: number
+  budget_id: number
+  budget_name: string
+  month: string
+  currency: string
+  created_at: string
+}
+
+interface BudgetTargetRow {
+  id: number
+  category_id: number
+  category_name: string
+  target_amount: number
+  actual_amount: number | null
 }
 
 type PdfParseFn = (buffer: Buffer) => Promise<PdfParseResult>
@@ -797,6 +833,130 @@ export class ExpensesService {
         ...existingRule,
         active: false,
       }
+    })
+  }
+
+  listBudgetPeriods(): BudgetPeriodRecord[] {
+    this.ensureSchema()
+
+    return this.withDatabase((db) => {
+      const rows = db
+        .prepare(
+          `
+          SELECT
+            p.id,
+            p.budget_id,
+            b.name AS budget_name,
+            p.month,
+            b.currency,
+            p.created_at
+          FROM exp_budget_periods AS p
+          INNER JOIN exp_budgets AS b ON b.id = p.budget_id
+          ORDER BY p.month DESC, p.id DESC
+          `
+        )
+        .all() as BudgetPeriodRow[]
+
+      return rows.map((row) => this.getBudgetPeriodWithRow(db, row))
+    })
+  }
+
+  createBudgetPeriod(input: {
+    month: string
+    budgetName?: string
+    currency?: string
+  }): BudgetPeriodRecord {
+    this.ensureSchema()
+
+    return this.withDatabase((db) => {
+      const budgetId = this.getOrCreateBudget(
+        db,
+        input.budgetName || 'Default Budget',
+        input.currency || 'PHP'
+      )
+      const insertResult = db
+        .prepare(
+          `
+          INSERT INTO exp_budget_periods(budget_id, month)
+          VALUES(?, ?)
+          ON CONFLICT(budget_id, month) DO UPDATE SET month = excluded.month
+          RETURNING id
+          `
+        )
+        .get(budgetId, input.month) as { id: number } | undefined
+
+      if (!insertResult) {
+        throw new Error('failed to create budget period')
+      }
+
+      return this.getBudgetPeriod(insertResult.id)
+    })
+  }
+
+  getBudgetPeriod(periodId: number): BudgetPeriodRecord {
+    this.ensureSchema()
+
+    return this.withDatabase((db) => {
+      const row = db
+        .prepare(
+          `
+          SELECT
+            p.id,
+            p.budget_id,
+            b.name AS budget_name,
+            p.month,
+            b.currency,
+            p.created_at
+          FROM exp_budget_periods AS p
+          INNER JOIN exp_budgets AS b ON b.id = p.budget_id
+          WHERE p.id = ?
+          LIMIT 1
+          `
+        )
+        .get(periodId) as BudgetPeriodRow | undefined
+
+      if (!row) {
+        throw new Error(`budget period ${periodId} not found`)
+      }
+
+      return this.getBudgetPeriodWithRow(db, row)
+    })
+  }
+
+  upsertBudgetTarget(
+    periodId: number,
+    categoryId: number,
+    targetAmount: number
+  ): BudgetPeriodRecord {
+    this.ensureSchema()
+
+    return this.withDatabase((db) => {
+      db.prepare(
+        `
+        INSERT INTO exp_budget_targets(period_id, category_id, target_amount)
+        VALUES(?, ?, ?)
+        ON CONFLICT(period_id, category_id)
+        DO UPDATE SET target_amount = excluded.target_amount
+        `
+      ).run(periodId, categoryId, targetAmount)
+
+      return this.getBudgetPeriod(periodId)
+    })
+  }
+
+  deleteBudgetTarget(targetId: number): BudgetPeriodRecord {
+    this.ensureSchema()
+
+    return this.withDatabase((db) => {
+      const target = db
+        .prepare('SELECT period_id FROM exp_budget_targets WHERE id = ? LIMIT 1')
+        .get(targetId) as { period_id: number } | undefined
+      if (!target) {
+        throw new Error(`budget target ${targetId} not found`)
+      }
+
+      db.prepare('DELETE FROM exp_budget_targets WHERE id = ?').run(targetId)
+      return this.getBudgetPeriod(target.period_id)
     })
   }
 
@@ -2243,6 +2403,61 @@ export class ExpensesService {
       active: row.active === 1,
       createdAt: row.created_at,
     }
+  }
+
+  private getBudgetPeriodWithRow(db: Database.Database, row: BudgetPeriodRow): BudgetPeriodRecord {
+    const targets = db
+      .prepare(
+        `
+        SELECT
+          t.id,
+          t.category_id,
+          c.name AS category_name,
+          t.target_amount,
+          ABS(COALESCE(SUM(COALESCE(tx.amount_home, tx.amount)), 0)) AS actual_amount
+        FROM exp_budget_targets AS t
+        INNER JOIN exp_categories AS c ON c.id = t.category_id
+        LEFT JOIN exp_transactions AS tx
+          ON tx.category_id = t.category_id
+         AND substr(tx.tx_date, 1, 7) = ?
+         AND COALESCE(tx.amount_home, tx.amount) < 0
+        WHERE t.period_id = ?
+        GROUP BY t.id, t.category_id, c.name, t.target_amount
+        ORDER BY c.name ASC
+        `
+      )
+      .all(row.month, row.id) as BudgetTargetRow[]
+
+    return {
+      id: row.id,
+      budgetId: row.budget_id,
+      budgetName: row.budget_name,
+      month: row.month,
+      currency: row.currency,
+      createdAt: row.created_at,
+      targets: targets.map((target) => ({
+        id: target.id,
+        categoryId: target.category_id,
+        categoryName: target.category_name,
+        targetAmount: Number(target.target_amount),
+        actualAmount: Number(target.actual_amount || 0),
+        remainingAmount: Number(target.target_amount) - Number(target.actual_amount || 0),
+      })),
+    }
+  }
+
+  private getOrCreateBudget(db: Database.Database, name: string, currency: string): number {
+    const existing = db.prepare('SELECT id FROM exp_budgets WHERE name = ? LIMIT 1').get(name) as
+      | { id: number }
+      | undefined
+    if (existing) {
+      return existing.id
+    }
+
+    const result = db
+      .prepare('INSERT INTO exp_budgets(name, currency) VALUES(?, ?)')
+      .run(name, currency)
+    return Number(result.lastInsertRowid)
   }
 
   private normalizeTransactionDate(rawDate: string): string {

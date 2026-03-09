@@ -384,7 +384,7 @@ Failure modes:
 
 ## Phase 5: Add budgeting foundations
 
-### Step 5.1: Create budget tables and API
+### Step 5.1: Create budget tables and API **COMPLETED**
 
 Files:
 
