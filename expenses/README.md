@@ -1,8 +1,7 @@
 # Expenses Backend
 
-This directory now owns the SQLite schema and bootstrap scripts for the expenses
-domain. The dashboard frontend source lives in `frontend/`
-and builds into `public/expenses/`.
+This directory owns the SQLite schema for the expenses domain. The dashboard frontend
+lives in `frontend/`, and the Node/TypeScript backend lives in `server/`.
 
 ## Setup
 
@@ -10,12 +9,12 @@ From the repository root:
 
 ```bash
 bun install
-bun run build
-python3 expenses/init_db.py
-python3 dashboard/server.py
+bun run db:init
+PORT=8081 bun run dev
 ```
 
-Open `http://127.0.0.1:8081/expenses/`.
+Open `http://127.0.0.1:5173/expenses/` in development, or run `bun run build && bun run start`
+for the built server on `http://127.0.0.1:8081/expenses/`.
 
 ## API
 
@@ -28,5 +27,5 @@ Open `http://127.0.0.1:8081/expenses/`.
 
 ## Notes
 
-- PDF extraction uses `pdftotext -layout` first, then falls back to `pypdf`.
+- PDF extraction uses `pdftotext -layout` first, then falls back to `pdf-parse`.
 - Duplicate protection uses a SHA-256 `source_hash` plus a business-key check.

@@ -1,39 +1,46 @@
 # Money Dashboard
 
-Standalone money tracking dashboard repository.
+Standalone money tracking dashboard repository, now fully backed by Node.js and TypeScript.
 
 ## Run
 
 ```bash
 bun install
+bun run db:init
+PORT=8081 bun run dev
+```
+
+For a production-style run:
+
+```bash
 bun run build
-python3 expenses/init_db.py
-./scripts/start_money_dashboard.sh
-# or: PORT=8081 python3 dashboard/server.py
-# or: PORT=9090 ./scripts/start_money_dashboard.sh
+bun run start
 ```
 
 Open:
 
-- http://127.0.0.1:8081/expenses/
+- http://127.0.0.1:5173/expenses/ during `bun run dev`
+- http://127.0.0.1:8081/expenses/ during `bun run start`
 
 ## Included
 
-- `frontend/` TypeScript source
-- `public/expenses/` compiled dashboard assets
-- `expenses/` schema + bootstrap scripts
-- `dashboard/server.py` lean static/API server
-- `dashboard/expenses_service.py` expenses domain logic
+- `frontend/` React + Vite dashboard source
+- `server/` Express + TypeScript API, SQLite service, PDF parsing/import logic
+- `expenses/` SQLite schema
+- `tests/` TypeScript fixture tests for parsing/import behavior
 - `money_dashboard.db` SQLite database
-- `scripts/start_money_dashboard.sh`
+- `scripts/` lightweight Node/TypeScript helpers
 
 ## Tooling
 
 ```bash
 bun run dev
-bun run test:python
+bun run db:init
+bun run build
+bun run start
+bun run test
 bun run typecheck
 bun run lint
 bun run format
-bun run build
+bun run verify
 ```
