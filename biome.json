@@ -1,7 +1,23 @@
 {
   "$schema": "https://biomejs.dev/schemas/1.9.4/schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
   "files": {
-    "ignore": ["dist/**", "money_dashboard.db", "public/expenses/**"]
+    "ignoreUnknown": true,
+    "ignore": [
+      "dashboard/app.js",
+      "dashboard/data.json",
+      "imports/**",
+      "training_dashboard.db",
+      "dist/**",
+      "build/**",
+      "coverage/**",
+      "node_modules/**"
+    ],
+    "include": ["src/**/*", "index.html", "package.json", "vite.config.*", "vitest.config.*"]
   },
   "formatter": {
     "enabled": true,
@@ -9,22 +25,100 @@
     "indentWidth": 2,
     "lineWidth": 100
   },
-  "linter": {
-    "enabled": true,
-    "rules": {
-      "recommended": true
-    }
-  },
   "javascript": {
     "formatter": {
       "quoteStyle": "single",
-      "semicolons": "asNeeded",
-      "trailingCommas": "es5"
+      "semicolons": "always",
+      "trailingCommas": "all",
+      "arrowParentheses": "always",
+      "bracketSpacing": true
     }
   },
-  "json": {
-    "formatter": {
-      "trailingCommas": "none"
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "recommended": true,
+      "complexity": {
+        "noExtraBooleanCast": "error",
+        "noForEach": "warn",
+        "useOptionalChain": "error",
+        "useArrowFunction": "warn",
+        "useDateNow": "error",
+        "useFlatMap": "warn",
+        "useLiteralKeys": "warn",
+        "useRegexLiterals": "warn",
+        "useSimplifiedLogicExpression": "warn",
+        "noExcessiveCognitiveComplexity": {
+          "level": "error",
+          "options": {
+            "maxAllowedComplexity": 10
+          }
+        }
+      },
+      "correctness": {
+        "noUnusedImports": "error",
+        "noUnusedVariables": "error",
+        "noUndeclaredVariables": "error",
+        "useExhaustiveDependencies": "error",
+        "useHookAtTopLevel": "error",
+        "useJsxKeyInIterable": "error",
+        "noChildrenProp": "error"
+      },
+      "suspicious": {
+        "noExplicitAny": "error",
+        "noConsole": "warn"
+      },
+      "style": {
+        "noParameterAssign": "error",
+        "noUnusedTemplateLiteral": "error",
+        "useNumberNamespace": "error",
+        "useSingleVarDeclarator": "warn",
+        "noUselessElse": "error",
+        "useImportType": "error"
+      },
+      "performance": {
+        "noAccumulatingSpread": "warn"
+      },
+      "security": {
+        "noDangerouslySetInnerHtml": "warn",
+        "noDangerouslySetInnerHtmlWithChildren": "error",
+        "noGlobalEval": "error"
+      },
+      "a11y": {
+        "useButtonType": "error",
+        "useHtmlLang": "error",
+        "useIframeTitle": "error",
+        "useKeyWithClickEvents": "error",
+        "useKeyWithMouseEvents": "error",
+        "useValidAnchor": "error",
+        "useValidAriaProps": "error",
+        "useValidAriaRole": "error",
+        "useValidAriaValues": "error"
+      },
+      "nursery": {
+        "recommended": true,
+        "noNestedTernary": "warn",
+        "noProcessEnv": "warn",
+        "noSecrets": "warn",
+        "useCollapsedIf": "warn",
+        "useConsistentCurlyBraces": "warn",
+        "useStrictMode": "error"
+      }
     }
-  }
+  },
+  "overrides": [
+    {
+      "include": ["**/*.test.*", "**/*.spec.*", "**/__tests__/**"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noConsole": "off"
+          },
+          "nursery": {
+            "noSecrets": "off"
+          }
+        }
+      }
+    }
+  ]
 }
