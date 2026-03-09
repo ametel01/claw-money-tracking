@@ -14,23 +14,23 @@ import {
   recomputeRecurringSeries,
   rejectImportRow,
   toErrorMessage,
-} from '@/api/expenses'
-import { BudgetProgressCard } from '@/components/BudgetProgressCard'
-import { CashFlowCard } from '@/components/CashFlowCard'
-import { CategoryPie } from '@/components/CategoryPie'
-import { CurrencyControls } from '@/components/CurrencyControls'
-import { ImportBatchStatus } from '@/components/ImportBatchStatus'
-import { ImportForm } from '@/components/ImportForm'
-import { ImportReviewQueue } from '@/components/ImportReviewQueue'
-import { KpiCards } from '@/components/KpiCards'
-import { LineChart } from '@/components/LineChart'
-import { MerchantLeaderboardCard } from '@/components/MerchantLeaderboardCard'
-import { MonthTabs } from '@/components/MonthTabs'
-import { RecurringPreviewCard } from '@/components/RecurringPreviewCard'
-import { TransactionList } from '@/components/TransactionList'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { categoryBreakdownToPieSegments, monthlySummaryToMonthTabs } from '@/lib/analytics'
-import { monthLabel } from '@/lib/format'
+} from '@/api/expenses';
+import { BudgetProgressCard } from '@/components/BudgetProgressCard';
+import { CashFlowCard } from '@/components/CashFlowCard';
+import { CategoryPie } from '@/components/CategoryPie';
+import { CurrencyControls } from '@/components/CurrencyControls';
+import { ImportBatchStatus } from '@/components/ImportBatchStatus';
+import { ImportForm } from '@/components/ImportForm';
+import { ImportReviewQueue } from '@/components/ImportReviewQueue';
+import { KpiCards } from '@/components/KpiCards';
+import { LineChart } from '@/components/LineChart';
+import { MerchantLeaderboardCard } from '@/components/MerchantLeaderboardCard';
+import { MonthTabs } from '@/components/MonthTabs';
+import { RecurringPreviewCard } from '@/components/RecurringPreviewCard';
+import { TransactionList } from '@/components/TransactionList';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { categoryBreakdownToPieSegments, monthlySummaryToMonthTabs } from '@/lib/analytics';
+import { monthLabel } from '@/lib/format';
 import type {
   BudgetPeriodRecord,
   CashFlowPoint,
@@ -43,24 +43,24 @@ import type {
   PieSegment,
   RecurringInsights,
   TransactionRecord,
-} from '@/types'
-import { useCallback, useEffect, useRef, useState } from 'react'
+} from '@/types';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 interface DashboardState {
-  overview: OverviewResponse | null
-  transactions: TransactionRecord[]
-  months: MonthSummary[]
-  pieSegments: PieSegment[]
-  lineChartModel: LineChartModel
-  cashFlow: CashFlowPoint[]
-  merchantLeaderboard: MerchantLeaderboardItem[]
-  latestImportBatch: ImportBatchDetail | null
-  busyReviewRowId: number | null
-  budgetPeriods: BudgetPeriodRecord[]
-  recurringInsights: RecurringInsights | null
-  activeMonth: string | null
-  viewMode: CurrencyViewMode
-  loadStatus: { tone: 'loading' | 'success' | 'error'; message: string }
+  overview: OverviewResponse | null;
+  transactions: TransactionRecord[];
+  months: MonthSummary[];
+  pieSegments: PieSegment[];
+  lineChartModel: LineChartModel;
+  cashFlow: CashFlowPoint[];
+  merchantLeaderboard: MerchantLeaderboardItem[];
+  latestImportBatch: ImportBatchDetail | null;
+  busyReviewRowId: number | null;
+  budgetPeriods: BudgetPeriodRecord[];
+  recurringInsights: RecurringInsights | null;
+  activeMonth: string | null;
+  viewMode: CurrencyViewMode;
+  loadStatus: { tone: 'loading' | 'success' | 'error'; message: string };
 }
 
 const EMPTY_LINE_CHART: LineChartModel = {
@@ -77,10 +77,21 @@ const EMPTY_LINE_CHART: LineChartModel = {
   daysInMonth: 0,
   isCurrentMonth: false,
   largestDay: null,
+};
+
+function getLoadStatusClassName(tone: DashboardState['loadStatus']['tone']): string {
+  switch (tone) {
+    case 'error':
+      return 'text-xs text-destructive sm:text-right';
+    case 'success':
+      return 'text-xs text-[var(--color-success)] sm:text-right';
+    default:
+      return 'text-xs text-muted-foreground sm:text-right';
+  }
 }
 
 export function App() {
-  const activeMonthRef = useRef<string | null>(null)
+  const activeMonthRef = useRef<string | null>(null);
   const [state, setState] = useState<DashboardState>({
     overview: null,
     transactions: [],
@@ -96,7 +107,7 @@ export function App() {
     activeMonth: null,
     viewMode: 'home',
     loadStatus: { tone: 'loading', message: 'Loading dashboard…' },
-  })
+  });
 
   const loadMonthData = useCallback(async (month: string | null) => {
     const [transactions, breakdown, lineChartModel, merchantLeaderboard] = await Promise.all([
@@ -104,21 +115,21 @@ export function App() {
       getCategoryBreakdown(month ?? undefined),
       getSpendingPaceModel(month),
       getMerchantLeaderboard(month ?? undefined),
-    ])
+    ]);
 
     return {
       transactions,
       pieSegments: categoryBreakdownToPieSegments(breakdown),
       lineChartModel,
       merchantLeaderboard,
-    }
-  }, [])
+    };
+  }, []);
 
   const refreshDashboard = useCallback(async () => {
     setState((prev) => ({
       ...prev,
       loadStatus: { tone: 'loading', message: 'Loading dashboard…' },
-    }))
+    }));
 
     try {
       const [overview, monthlySummary, cashFlow, latestBatches, budgetPeriods] = await Promise.all([
@@ -127,19 +138,19 @@ export function App() {
         getCashFlow(),
         getImportBatches(1),
         getBudgetPeriods(),
-      ])
-      const months = monthlySummaryToMonthTabs(monthlySummary)
+      ]);
+      const months = monthlySummaryToMonthTabs(monthlySummary);
       const selectedMonth =
         activeMonthRef.current && months.some((month) => month.key === activeMonthRef.current)
           ? activeMonthRef.current
-          : (months[0]?.key ?? null)
+          : (months[0]?.key ?? null);
       const [monthData, latestImportBatch] = await Promise.all([
         loadMonthData(selectedMonth),
         latestBatches[0] ? getImportBatch(latestBatches[0].id) : Promise.resolve(null),
-      ])
-      await recomputeRecurringSeries()
-      const recurringInsights = await getRecurringInsights(selectedMonth ?? undefined)
-      activeMonthRef.current = selectedMonth
+      ]);
+      await recomputeRecurringSeries();
+      const recurringInsights = await getRecurringInsights(selectedMonth ?? undefined);
+      activeMonthRef.current = selectedMonth;
 
       setState((prev) => ({
         ...prev,
@@ -160,29 +171,29 @@ export function App() {
             selectedMonth ? monthLabel(selectedMonth) : 'the ledger'
           }.`,
         },
-      }))
+      }));
     } catch (error) {
       setState((prev) => ({
         ...prev,
         loadStatus: { tone: 'error', message: toErrorMessage(error) },
-      }))
+      }));
     }
-  }, [loadMonthData])
+  }, [loadMonthData]);
 
   const handleMonthChange = useCallback(
     async (month: string) => {
-      activeMonthRef.current = month
+      activeMonthRef.current = month;
       setState((prev) => ({
         ...prev,
         activeMonth: month,
         loadStatus: { tone: 'loading', message: `Loading ${monthLabel(month)}…` },
-      }))
+      }));
 
       try {
         const [monthData, recurringInsights] = await Promise.all([
           loadMonthData(month),
           getRecurringInsights(month),
-        ])
+        ]);
         setState((prev) => ({
           ...prev,
           activeMonth: month,
@@ -195,46 +206,46 @@ export function App() {
             tone: 'success',
             message: `Loaded ${monthData.transactions.length} transactions for ${monthLabel(month)}.`,
           },
-        }))
+        }));
       } catch (error) {
         setState((prev) => ({
           ...prev,
           loadStatus: { tone: 'error', message: toErrorMessage(error) },
-        }))
+        }));
       }
     },
-    [loadMonthData]
-  )
+    [loadMonthData],
+  );
 
   const handleReviewAction = useCallback(
     async (rowId: number, action: 'accept' | 'reject') => {
-      setState((prev) => ({ ...prev, busyReviewRowId: rowId }))
+      setState((prev) => ({ ...prev, busyReviewRowId: rowId }));
 
       try {
         if (action === 'accept') {
-          await acceptImportRow(rowId)
+          await acceptImportRow(rowId);
         } else {
-          await rejectImportRow(rowId)
+          await rejectImportRow(rowId);
         }
 
-        await refreshDashboard()
+        await refreshDashboard();
       } catch (error) {
         setState((prev) => ({
           ...prev,
           busyReviewRowId: null,
           loadStatus: { tone: 'error', message: toErrorMessage(error) },
-        }))
-        return
+        }));
+        return;
       }
 
-      setState((prev) => ({ ...prev, busyReviewRowId: null }))
+      setState((prev) => ({ ...prev, busyReviewRowId: null }));
     },
-    [refreshDashboard]
-  )
+    [refreshDashboard],
+  );
 
   useEffect(() => {
-    void refreshDashboard()
-  }, [refreshDashboard])
+    void refreshDashboard();
+  }, [refreshDashboard]);
 
   const {
     overview,
@@ -248,15 +259,16 @@ export function App() {
     busyReviewRowId,
     budgetPeriods,
     recurringInsights,
-  } = state
-  const loading = loadStatus.tone === 'loading'
-  const lineChartModel = state.lineChartModel
-  const cashFlow = state.cashFlow
-  const merchantLeaderboard = state.merchantLeaderboard
-  const activeBudgetPeriod = budgetPeriods.find((period) => period.month === activeMonth) ?? null
+  } = state;
+  const loading = loadStatus.tone === 'loading';
+  const lineChartModel = state.lineChartModel;
+  const cashFlow = state.cashFlow;
+  const merchantLeaderboard = state.merchantLeaderboard;
+  const activeBudgetPeriod = budgetPeriods.find((period) => period.month === activeMonth) ?? null;
+  const loadStatusClassName = getLoadStatusClassName(loadStatus.tone);
   const latestBatchSummary = latestImportBatch
     ? `${latestImportBatch.counts.needs_review} need review, ${latestImportBatch.counts.duplicate} duplicates in the latest batch.`
-    : undefined
+    : undefined;
 
   return (
     <div className="w-full max-w-[1320px] mx-auto px-4 py-6 pb-16">
@@ -271,16 +283,7 @@ export function App() {
             SQLite-backed statement imports, FX normalization, and lean visual summaries.
           </p>
         </div>
-        <p
-          className={
-            loadStatus.tone === 'error'
-              ? 'text-xs text-destructive sm:text-right'
-              : loadStatus.tone === 'success'
-                ? 'text-xs text-[var(--color-success)] sm:text-right'
-                : 'text-xs text-muted-foreground sm:text-right'
-          }
-          aria-live="polite"
-        >
+        <p className={loadStatusClassName} aria-live="polite">
           {loadStatus.message}
         </p>
       </header>
@@ -484,5 +487,5 @@ export function App() {
         </section>
       </main>
     </div>
-  )
+  );
 }
