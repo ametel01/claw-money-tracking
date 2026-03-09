@@ -8,8 +8,10 @@ import {
   getMerchantLeaderboard,
   getMonthlyAnalyticsSummary,
   getOverview,
+  getRecurringInsights,
   getSpendingPaceModel,
   getTransactions,
+  recomputeRecurringSeries,
   rejectImportRow,
   toErrorMessage,
 } from '@/api/expenses'
@@ -39,6 +41,7 @@ import type {
   MonthSummary,
   OverviewResponse,
   PieSegment,
+  RecurringInsights,
   TransactionRecord,
 } from '@/types'
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -54,6 +57,7 @@ interface DashboardState {
   latestImportBatch: ImportBatchDetail | null
   busyReviewRowId: number | null
   budgetPeriods: BudgetPeriodRecord[]
+  recurringInsights: RecurringInsights | null
   activeMonth: string | null
   viewMode: CurrencyViewMode
   loadStatus: { tone: 'loading' | 'success' | 'error'; message: string }
@@ -88,6 +92,7 @@ export function App() {
     latestImportBatch: null,
     busyReviewRowId: null,
     budgetPeriods: [],
+    recurringInsights: null,
     activeMonth: null,
     viewMode: 'home',
     loadStatus: { tone: 'loading', message: 'Loading dashboard…' },
@@ -132,6 +137,8 @@ export function App() {
         loadMonthData(selectedMonth),
         latestBatches[0] ? getImportBatch(latestBatches[0].id) : Promise.resolve(null),
       ])
+      await recomputeRecurringSeries()
+      const recurringInsights = await getRecurringInsights(selectedMonth ?? undefined)
       activeMonthRef.current = selectedMonth
 
       setState((prev) => ({
@@ -145,6 +152,7 @@ export function App() {
         merchantLeaderboard: monthData.merchantLeaderboard,
         latestImportBatch,
         budgetPeriods,
+        recurringInsights,
         activeMonth: selectedMonth,
         loadStatus: {
           tone: 'success',
@@ -171,7 +179,10 @@ export function App() {
       }))
 
       try {
-        const monthData = await loadMonthData(month)
+        const [monthData, recurringInsights] = await Promise.all([
+          loadMonthData(month),
+          getRecurringInsights(month),
+        ])
         setState((prev) => ({
           ...prev,
           activeMonth: month,
@@ -179,6 +190,7 @@ export function App() {
           pieSegments: monthData.pieSegments,
           lineChartModel: monthData.lineChartModel,
           merchantLeaderboard: monthData.merchantLeaderboard,
+          recurringInsights,
           loadStatus: {
             tone: 'success',
             message: `Loaded ${monthData.transactions.length} transactions for ${monthLabel(month)}.`,
@@ -235,6 +247,7 @@ export function App() {
     latestImportBatch,
     busyReviewRowId,
     budgetPeriods,
+    recurringInsights,
   } = state
   const loading = loadStatus.tone === 'loading'
   const lineChartModel = state.lineChartModel
@@ -386,7 +399,7 @@ export function App() {
               <CardTitle>Recurring charges preview</CardTitle>
             </CardHeader>
             <CardContent>
-              <RecurringPreviewCard />
+              <RecurringPreviewCard insights={recurringInsights} />
             </CardContent>
           </Card>
         </section>

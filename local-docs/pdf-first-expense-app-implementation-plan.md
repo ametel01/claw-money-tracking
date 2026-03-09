@@ -463,7 +463,7 @@ Failure modes:
 
 - If recurring detection runs on raw descriptions instead of merchant-normalized data, the series table will fragment badly.
 
-### Step 6.2: Expose recurring insights in the dashboard
+### Step 6.2: Expose recurring insights in the dashboard **COMPLETED**
 
 Files:
 

@@ -146,6 +146,23 @@ export interface BudgetPeriodRecord {
   targets: BudgetTargetRecord[]
 }
 
+export interface RecurringSeriesRecord {
+  id: number
+  merchantId: number | null
+  merchantName: string
+  cadence: 'monthly' | 'annual'
+  averageAmount: number
+  nextExpectedDate: string | null
+  lastTransactionDate: string | null
+  occurrenceCount: number
+}
+
+export interface RecurringInsights {
+  nextCharges: RecurringSeriesRecord[]
+  likelySubscriptions: RecurringSeriesRecord[]
+  projectedRemainingFixedSpend: number
+}
+
 export interface BackfillFxResponse extends ApiStatusResponse {
   updated?: number
 }

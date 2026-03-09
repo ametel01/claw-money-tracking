@@ -13,6 +13,7 @@ import type {
   MerchantLeaderboardItem,
   MonthlyAnalyticsSummary,
   OverviewResponse,
+  RecurringInsights,
   TransactionRecord,
 } from '../types'
 
@@ -147,6 +148,26 @@ export function deleteBudgetTarget(targetId: number): Promise<BudgetPeriodRecord
   return requestJson<BudgetPeriodRecord>(`/api/expenses/budget-targets/${targetId}`, {
     method: 'DELETE',
   })
+}
+
+export function recomputeRecurringSeries(): Promise<{
+  ok: boolean
+  seriesCount: number
+  occurrenceCount: number
+}> {
+  return requestJson('/api/expenses/recurring/recompute', {
+    method: 'POST',
+  })
+}
+
+export function getRecurringInsights(month?: string): Promise<RecurringInsights> {
+  const query = new URLSearchParams()
+  if (month) {
+    query.set('month', month)
+  }
+
+  const suffix = query.size > 0 ? `?${query.toString()}` : ''
+  return requestJson<RecurringInsights>(`/api/expenses/recurring/insights${suffix}`)
 }
 
 export function updateUsdPhpRate(rate: number): Promise<ApiStatusResponse> {
