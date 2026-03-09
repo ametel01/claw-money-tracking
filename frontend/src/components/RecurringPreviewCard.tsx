@@ -1,8 +1,8 @@
-import { formatMoney } from '@/lib/format'
-import type { RecurringInsights } from '@/types'
+import { formatMoney } from '@/lib/format';
+import type { RecurringInsights } from '@/types';
 
 interface RecurringPreviewCardProps {
-  insights: RecurringInsights | null
+  insights: RecurringInsights | null;
 }
 
 export function RecurringPreviewCard({ insights }: RecurringPreviewCardProps) {
@@ -14,7 +14,7 @@ export function RecurringPreviewCard({ insights }: RecurringPreviewCardProps) {
           Recurring detection has not found any stable monthly or annual series yet.
         </p>
       </div>
-    )
+    );
   }
 
   return (
@@ -49,5 +49,5 @@ export function RecurringPreviewCard({ insights }: RecurringPreviewCardProps) {
         )}
       </div>
     </div>
-  )
+  );
 }

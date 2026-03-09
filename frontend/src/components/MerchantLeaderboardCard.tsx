@@ -1,9 +1,9 @@
-import { formatMoney, monthLabel } from '@/lib/format'
-import type { MerchantLeaderboardItem } from '@/types'
+import { formatMoney, monthLabel } from '@/lib/format';
+import type { MerchantLeaderboardItem } from '@/types';
 
 interface MerchantLeaderboardCardProps {
-  merchants: MerchantLeaderboardItem[]
-  activeMonth: string | null
+  merchants: MerchantLeaderboardItem[];
+  activeMonth: string | null;
 }
 
 export function MerchantLeaderboardCard({ merchants, activeMonth }: MerchantLeaderboardCardProps) {
@@ -12,7 +12,7 @@ export function MerchantLeaderboardCard({ merchants, activeMonth }: MerchantLead
       <p className="text-xs text-muted-foreground">
         No merchant trends available for {activeMonth ? monthLabel(activeMonth) : 'this view'}.
       </p>
-    )
+    );
   }
 
   return (
@@ -38,5 +38,5 @@ export function MerchantLeaderboardCard({ merchants, activeMonth }: MerchantLead
         </div>
       ))}
     </div>
-  )
+  );
 }

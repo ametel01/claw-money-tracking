@@ -1,46 +1,46 @@
-import { importPdfStatement, toErrorMessage } from '@/api/expenses'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { type FormEvent, useRef, useState } from 'react'
+import { importPdfStatement, toErrorMessage } from '@/api/expenses';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { type FormEvent, useRef, useState } from 'react';
 
 interface ImportFormProps {
-  onImported: () => Promise<void>
-  latestBatchSummary?: string
+  onImported: () => Promise<void>;
+  latestBatchSummary?: string;
 }
 
-type Status = { tone: 'idle' | 'pending' | 'success' | 'error'; message: string }
+type Status = { tone: 'idle' | 'pending' | 'success' | 'error'; message: string };
 
 export function ImportForm({ onImported, latestBatchSummary }: ImportFormProps) {
-  const [status, setStatus] = useState<Status>({ tone: 'idle', message: '' })
-  const formRef = useRef<HTMLFormElement>(null)
+  const [status, setStatus] = useState<Status>({ tone: 'idle', message: '' });
+  const formRef = useRef<HTMLFormElement>(null);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    const form = event.currentTarget
-    const accountName = (form.elements.namedItem('accountName') as HTMLInputElement).value.trim()
-    const file = (form.elements.namedItem('pdfFile') as HTMLInputElement).files?.[0]
+    event.preventDefault();
+    const form = event.currentTarget;
+    const accountName = (form.elements.namedItem('accountName') as HTMLInputElement).value.trim();
+    const file = (form.elements.namedItem('pdfFile') as HTMLInputElement).files?.[0];
 
     if (!file) {
-      setStatus({ tone: 'error', message: 'Choose a PDF statement first.' })
-      return
+      setStatus({ tone: 'error', message: 'Choose a PDF statement first.' });
+      return;
     }
 
-    setStatus({ tone: 'pending', message: 'Parsing PDF statement…' })
+    setStatus({ tone: 'pending', message: 'Parsing PDF statement…' });
 
     try {
-      const response = await importPdfStatement(accountName, file)
-      if (!response.ok) throw new Error(response.error || 'Import failed')
+      const response = await importPdfStatement(accountName, file);
+      if (!response.ok) throw new Error(response.error || 'Import failed');
 
-      formRef.current?.reset()
-      await onImported()
+      formRef.current?.reset();
+      await onImported();
       setStatus({
         tone: 'success',
         message: `Imported ${response.insertedTransactions ?? 0} transaction(s) from ${response.parsedRows ?? 0} parsed rows.`,
-      })
+      });
     } catch (error) {
-      setStatus({ tone: 'error', message: toErrorMessage(error) })
+      setStatus({ tone: 'error', message: toErrorMessage(error) });
     }
   }
 
@@ -78,12 +78,12 @@ export function ImportForm({ onImported, latestBatchSummary }: ImportFormProps) 
       ) : null}
       <StatusLine status={status} />
     </form>
-  )
+  );
 }
 
 function StatusLine({ status }: { status: Status }) {
   if (status.tone === 'idle' || !status.message) {
-    return <div className="min-h-[1.1rem]" />
+    return <div className="min-h-[1.1rem]" />;
   }
 
   if (status.tone === 'error') {
@@ -91,7 +91,7 @@ function StatusLine({ status }: { status: Status }) {
       <Alert variant="destructive" className="py-2">
         <AlertDescription className="text-xs">{status.message}</AlertDescription>
       </Alert>
-    )
+    );
   }
 
   return (
@@ -104,5 +104,5 @@ function StatusLine({ status }: { status: Status }) {
     >
       {status.message}
     </p>
-  )
+  );
 }

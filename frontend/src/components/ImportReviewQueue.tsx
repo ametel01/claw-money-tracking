@@ -1,15 +1,15 @@
-import { Button } from '@/components/ui/button'
-import type { ImportBatchDetail, ImportRowRecord } from '@/types'
+import { Button } from '@/components/ui/button';
+import type { ImportBatchDetail, ImportRowRecord } from '@/types';
 
 interface ImportReviewQueueProps {
-  batch: ImportBatchDetail | null
-  busyRowId: number | null
-  onAccept: (rowId: number) => Promise<void>
-  onReject: (rowId: number) => Promise<void>
+  batch: ImportBatchDetail | null;
+  busyRowId: number | null;
+  onAccept: (rowId: number) => Promise<void>;
+  onReject: (rowId: number) => Promise<void>;
 }
 
 function isPendingReview(row: ImportRowRecord): boolean {
-  return row.status === 'needs_review' || row.status === 'duplicate'
+  return row.status === 'needs_review' || row.status === 'duplicate';
 }
 
 export function ImportReviewQueue({
@@ -18,16 +18,16 @@ export function ImportReviewQueue({
   onAccept,
   onReject,
 }: ImportReviewQueueProps) {
-  const rows = batch?.rows.filter(isPendingReview) ?? []
+  const rows = batch?.rows.filter(isPendingReview) ?? [];
 
   if (!batch || rows.length === 0) {
-    return <p className="text-xs text-muted-foreground">No rows awaiting review.</p>
+    return <p className="text-xs text-muted-foreground">No rows awaiting review.</p>;
   }
 
   return (
     <div className="grid gap-2">
       {rows.map((row) => {
-        const busy = busyRowId === row.id
+        const busy = busyRowId === row.id;
 
         return (
           <article
@@ -71,8 +71,8 @@ export function ImportReviewQueue({
               {row.referenceText ? <p>{row.referenceText}</p> : null}
             </div>
           </article>
-        )
+        );
       })}
     </div>
-  )
+  );
 }

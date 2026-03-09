@@ -5,30 +5,30 @@ import {
   getCurrency,
   getHomeAmount,
   monthKey,
-} from '@/lib/format'
-import { cn } from '@/lib/utils'
-import type { CurrencyViewMode, TransactionRecord } from '@/types'
+} from '@/lib/format';
+import { cn } from '@/lib/utils';
+import type { CurrencyViewMode, TransactionRecord } from '@/types';
 
 interface TransactionListProps {
-  transactions: TransactionRecord[]
-  activeMonth: string | null
-  viewMode: CurrencyViewMode
+  transactions: TransactionRecord[];
+  activeMonth: string | null;
+  viewMode: CurrencyViewMode;
 }
 
 function resolveAmountClass(row: TransactionRecord): string {
-  if (getCategoryKind(row) === 'transfer') return 'text-muted-foreground'
-  return getHomeAmount(row) < 0 ? 'text-[var(--color-danger)]' : 'text-[var(--color-success)]'
+  if (getCategoryKind(row) === 'transfer') return 'text-muted-foreground';
+  return getHomeAmount(row) < 0 ? 'text-[var(--color-danger)]' : 'text-[var(--color-success)]';
 }
 
 export function TransactionList({ transactions, activeMonth, viewMode }: TransactionListProps) {
   const visible = activeMonth
     ? transactions.filter((row) => monthKey(row.tx_date) === activeMonth)
-    : transactions
+    : transactions;
 
   if (visible.length === 0) {
     return (
       <p className="text-xs text-muted-foreground">No transactions available for this selection.</p>
-    )
+    );
   }
 
   return (
@@ -54,7 +54,7 @@ export function TransactionList({ transactions, activeMonth, viewMode }: Transac
           <div
             className={cn(
               'self-center text-[0.8rem] font-bold tabular-nums whitespace-nowrap',
-              resolveAmountClass(row)
+              resolveAmountClass(row),
             )}
           >
             {formatTransactionAmount(row, viewMode)}
@@ -62,5 +62,5 @@ export function TransactionList({ transactions, activeMonth, viewMode }: Transac
         </article>
       ))}
     </div>
-  )
+  );
 }

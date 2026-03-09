@@ -1,23 +1,23 @@
-import type { PieSegment } from '@/types'
+import type { PieSegment } from '@/types';
 
 interface CategoryPieProps {
-  segments: PieSegment[]
+  segments: PieSegment[];
 }
 
 export function CategoryPie({ segments }: CategoryPieProps) {
-  const gradientParts: string[] = []
-  let start = 0
+  const gradientParts: string[] = [];
+  let start = 0;
 
   for (const segment of segments) {
-    const end = start + segment.pct
-    gradientParts.push(`${segment.color} ${start.toFixed(2)}% ${end.toFixed(2)}%`)
-    start = end
+    const end = start + segment.pct;
+    gradientParts.push(`${segment.color} ${start.toFixed(2)}% ${end.toFixed(2)}%`);
+    start = end;
   }
 
   const pieStyle =
     segments.length > 0
       ? { background: `conic-gradient(${gradientParts.join(',')})` }
-      : { background: 'conic-gradient(var(--color-secondary) 0 360deg)' }
+      : { background: 'conic-gradient(var(--color-secondary) 0 360deg)' };
 
   return (
     <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
@@ -52,5 +52,5 @@ export function CategoryPie({ segments }: CategoryPieProps) {
         )}
       </div>
     </div>
-  )
+  );
 }

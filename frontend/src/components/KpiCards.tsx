@@ -1,11 +1,11 @@
-import { Card, CardContent } from '@/components/ui/card'
-import { Skeleton } from '@/components/ui/skeleton'
-import { formatMoney } from '@/lib/format'
-import type { OverviewResponse } from '@/types'
+import { Card, CardContent } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
+import { formatMoney } from '@/lib/format';
+import type { OverviewResponse } from '@/types';
 
 interface KpiCardsProps {
-  overview: OverviewResponse | null
-  loading?: boolean
+  overview: OverviewResponse | null;
+  loading?: boolean;
 }
 
 const ACCENT_CLASSES = [
@@ -13,7 +13,7 @@ const ACCENT_CLASSES = [
   'border-l-destructive',
   'border-l-primary',
   'border-l-[color:oklch(0.60_0.20_245)]',
-] as const
+] as const;
 
 export function KpiCards({ overview, loading }: KpiCardsProps) {
   const items: Array<[string, string]> = overview
@@ -28,7 +28,7 @@ export function KpiCards({ overview, loading }: KpiCardsProps) {
         ['Expenses', ''],
         ['Net', ''],
         ['Transactions', ''],
-      ]
+      ];
 
   return (
     <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
@@ -52,5 +52,5 @@ export function KpiCards({ overview, loading }: KpiCardsProps) {
         </Card>
       ))}
     </div>
-  )
+  );
 }

@@ -1,17 +1,17 @@
-import { Badge } from '@/components/ui/badge'
-import { monthLabel } from '@/lib/format'
-import type { ImportBatchDetail } from '@/types'
+import { Badge } from '@/components/ui/badge';
+import { monthLabel } from '@/lib/format';
+import type { ImportBatchDetail } from '@/types';
 
 interface ImportBatchStatusProps {
-  batch: ImportBatchDetail | null
+  batch: ImportBatchDetail | null;
 }
 
 export function ImportBatchStatus({ batch }: ImportBatchStatusProps) {
   if (!batch) {
-    return <p className="text-xs text-muted-foreground">No import batches yet.</p>
+    return <p className="text-xs text-muted-foreground">No import batches yet.</p>;
   }
 
-  const createdDate = batch.createdAt.slice(0, 7)
+  const createdDate = batch.createdAt.slice(0, 7);
 
   return (
     <div className="grid gap-2 rounded-lg border border-border/70 bg-muted/20 p-3">
@@ -35,5 +35,5 @@ export function ImportBatchStatus({ batch }: ImportBatchStatusProps) {
         <Badge variant="outline">Rejected {batch.counts.rejected}</Badge>
       </div>
     </div>
-  )
+  );
 }

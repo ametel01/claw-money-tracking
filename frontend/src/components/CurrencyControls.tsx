@@ -1,73 +1,73 @@
-import { backfillUsdPhp, toErrorMessage, updateUsdPhpRate } from '@/api/expenses'
-import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
+import { backfillUsdPhp, toErrorMessage, updateUsdPhpRate } from '@/api/expenses';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
-import { Separator } from '@/components/ui/separator'
-import type { CurrencyViewMode } from '@/types'
-import { type FormEvent, useState } from 'react'
+} from '@/components/ui/select';
+import { Separator } from '@/components/ui/separator';
+import type { CurrencyViewMode } from '@/types';
+import { type FormEvent, useState } from 'react';
 
 interface CurrencyControlsProps {
-  viewMode: CurrencyViewMode
-  onViewModeChange: (mode: CurrencyViewMode) => void
-  onRateUpdated: () => Promise<void>
+  viewMode: CurrencyViewMode;
+  onViewModeChange: (mode: CurrencyViewMode) => void;
+  onRateUpdated: () => Promise<void>;
 }
 
-type Status = { tone: 'idle' | 'pending' | 'success' | 'error'; message: string }
+type Status = { tone: 'idle' | 'pending' | 'success' | 'error'; message: string };
 
 export function CurrencyControls({
   viewMode,
   onViewModeChange,
   onRateUpdated,
 }: CurrencyControlsProps) {
-  const [fxStatus, setFxStatus] = useState<Status>({ tone: 'idle', message: '' })
-  const [backfillPending, setBackfillPending] = useState(false)
+  const [fxStatus, setFxStatus] = useState<Status>({ tone: 'idle', message: '' });
+  const [backfillPending, setBackfillPending] = useState(false);
 
   async function handleFxSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    const form = event.currentTarget
-    const rate = Number((form.elements.namedItem('usdPhpRate') as HTMLInputElement).value || 0)
+    event.preventDefault();
+    const form = event.currentTarget;
+    const rate = Number((form.elements.namedItem('usdPhpRate') as HTMLInputElement).value || 0);
 
     if (!Number.isFinite(rate) || rate <= 0) {
-      setFxStatus({ tone: 'error', message: 'Enter a valid USD/PHP rate.' })
-      return
+      setFxStatus({ tone: 'error', message: 'Enter a valid USD/PHP rate.' });
+      return;
     }
 
-    setFxStatus({ tone: 'pending', message: 'Saving FX rate…' })
+    setFxStatus({ tone: 'pending', message: 'Saving FX rate…' });
 
     try {
-      const response = await updateUsdPhpRate(rate)
-      if (!response.ok) throw new Error(response.error || 'Failed to update FX rate')
-      await onRateUpdated()
-      setFxStatus({ tone: 'success', message: 'USD/PHP rate updated.' })
+      const response = await updateUsdPhpRate(rate);
+      if (!response.ok) throw new Error(response.error || 'Failed to update FX rate');
+      await onRateUpdated();
+      setFxStatus({ tone: 'success', message: 'USD/PHP rate updated.' });
     } catch (error) {
-      setFxStatus({ tone: 'error', message: toErrorMessage(error) })
+      setFxStatus({ tone: 'error', message: toErrorMessage(error) });
     }
   }
 
   async function handleBackfill() {
-    setBackfillPending(true)
-    setFxStatus({ tone: 'pending', message: 'Backfilling historical FX…' })
+    setBackfillPending(true);
+    setFxStatus({ tone: 'pending', message: 'Backfilling historical FX…' });
 
     try {
-      const response = await backfillUsdPhp()
-      if (!response.ok) throw new Error(response.error || 'FX backfill failed')
-      await onRateUpdated()
+      const response = await backfillUsdPhp();
+      if (!response.ok) throw new Error(response.error || 'FX backfill failed');
+      await onRateUpdated();
       setFxStatus({
         tone: 'success',
         message: `Backfilled FX for ${response.updated ?? 0} USD transaction(s).`,
-      })
+      });
     } catch (error) {
-      setFxStatus({ tone: 'error', message: toErrorMessage(error) })
+      setFxStatus({ tone: 'error', message: toErrorMessage(error) });
     } finally {
-      setBackfillPending(false)
+      setBackfillPending(false);
     }
   }
 
@@ -128,18 +128,18 @@ export function CurrencyControls({
 
       <FxStatusLine status={fxStatus} />
     </div>
-  )
+  );
 }
 
 function FxStatusLine({ status }: { status: Status }) {
-  if (status.tone === 'idle' || !status.message) return <div className="min-h-[1.1rem]" />
+  if (status.tone === 'idle' || !status.message) return <div className="min-h-[1.1rem]" />;
 
   if (status.tone === 'error') {
     return (
       <Alert variant="destructive" className="py-2">
         <AlertDescription className="text-xs">{status.message}</AlertDescription>
       </Alert>
-    )
+    );
   }
 
   return (
@@ -152,5 +152,5 @@ function FxStatusLine({ status }: { status: Status }) {
     >
       {status.message}
     </p>
-  )
+  );
 }

@@ -1,17 +1,17 @@
-import { formatMoney, monthLabel } from '@/lib/format'
-import type { CashFlowPoint } from '@/types'
+import { formatMoney, monthLabel } from '@/lib/format';
+import type { CashFlowPoint } from '@/types';
 
 interface CashFlowCardProps {
-  points: CashFlowPoint[]
-  activeMonth: string | null
+  points: CashFlowPoint[];
+  activeMonth: string | null;
 }
 
 export function CashFlowCard({ points, activeMonth }: CashFlowCardProps) {
   const activePoint =
-    (activeMonth ? points.find((point) => point.month === activeMonth) : null) ?? points[0] ?? null
+    (activeMonth ? points.find((point) => point.month === activeMonth) : null) ?? points[0] ?? null;
 
   if (!activePoint) {
-    return <p className="text-xs text-muted-foreground">No cash-flow history available yet.</p>
+    return <p className="text-xs text-muted-foreground">No cash-flow history available yet.</p>;
   }
 
   return (
@@ -50,5 +50,5 @@ export function CashFlowCard({ points, activeMonth }: CashFlowCardProps) {
         ))}
       </div>
     </div>
-  )
+  );
 }
