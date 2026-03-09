@@ -1,11 +1,15 @@
 import type {
   ApiStatusResponse,
   BackfillFxResponse,
+  CashFlowPoint,
   CategorizationRuleRecord,
+  CategoryBreakdownItem,
   ImportBatchDetail,
   ImportBatchSummary,
   ImportPdfResponse,
   ImportRowActionResponse,
+  MerchantLeaderboardItem,
+  MonthlyAnalyticsSummary,
   OverviewResponse,
   TransactionRecord,
 } from '../types'
@@ -46,6 +50,41 @@ export function getOverview(): Promise<OverviewResponse> {
 
 export function getTransactions(limit = 400): Promise<TransactionRecord[]> {
   return requestJson<TransactionRecord[]>(`/api/expenses/transactions?limit=${limit}`)
+}
+
+export function getMonthlyAnalyticsSummary(limit = 12): Promise<MonthlyAnalyticsSummary[]> {
+  return requestJson<MonthlyAnalyticsSummary[]>(
+    `/api/expenses/analytics/monthly-summary?limit=${limit}`
+  )
+}
+
+export function getCategoryBreakdown(month?: string, limit = 8): Promise<CategoryBreakdownItem[]> {
+  const query = new URLSearchParams({ limit: String(limit) })
+  if (month) {
+    query.set('month', month)
+  }
+
+  return requestJson<CategoryBreakdownItem[]>(
+    `/api/expenses/analytics/category-breakdown?${query.toString()}`
+  )
+}
+
+export function getCashFlow(limit = 12): Promise<CashFlowPoint[]> {
+  return requestJson<CashFlowPoint[]>(`/api/expenses/analytics/cash-flow?limit=${limit}`)
+}
+
+export function getMerchantLeaderboard(
+  month?: string,
+  limit = 8
+): Promise<MerchantLeaderboardItem[]> {
+  const query = new URLSearchParams({ limit: String(limit) })
+  if (month) {
+    query.set('month', month)
+  }
+
+  return requestJson<MerchantLeaderboardItem[]>(
+    `/api/expenses/analytics/merchant-leaderboard?${query.toString()}`
+  )
 }
 
 export function updateUsdPhpRate(rate: number): Promise<ApiStatusResponse> {

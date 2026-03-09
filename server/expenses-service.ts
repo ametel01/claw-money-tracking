@@ -103,6 +103,36 @@ export interface CategorizationRuleRecord {
   createdAt: string
 }
 
+export interface MonthlyAnalyticsSummary {
+  month: string
+  income: number
+  expenses: number
+  net: number
+  transactionCount: number
+}
+
+export interface CategoryBreakdownItem {
+  categoryName: string
+  total: number
+  percentage: number
+  transactionCount: number
+}
+
+export interface CashFlowPoint {
+  month: string
+  income: number
+  expenses: number
+  net: number
+}
+
+export interface MerchantLeaderboardItem {
+  merchantId: number | null
+  merchantName: string
+  total: number
+  transactionCount: number
+  lastTransactionDate: string | null
+}
+
 interface TransactionRow {
   id: number
   tx_date: string
@@ -242,6 +272,145 @@ export class ExpensesService {
         net: income + expenses,
         txCount: Number(row?.tx_count ?? 0),
       }
+    })
+  }
+
+  getMonthlyAnalyticsSummary(limit = 12): MonthlyAnalyticsSummary[] {
+    this.ensureSchema()
+
+    return this.withDatabase((db) => {
+      const rows = db
+        .prepare(
+          `
+          SELECT
+            substr(t.tx_date, 1, 7) AS month,
+            COALESCE(SUM(
+              CASE
+                WHEN COALESCE(c.kind, 'expense') != 'transfer'
+                  AND COALESCE(t.amount_home, t.amount) > 0
+                THEN COALESCE(t.amount_home, t.amount)
+                ELSE 0
+              END
+            ), 0) AS income,
+            ABS(COALESCE(SUM(
+              CASE
+                WHEN COALESCE(c.kind, 'expense') != 'transfer'
+                  AND COALESCE(t.amount_home, t.amount) < 0
+                THEN COALESCE(t.amount_home, t.amount)
+                ELSE 0
+              END
+            ), 0)) AS expenses,
+            COUNT(*) AS transaction_count
+          FROM exp_transactions AS t
+          LEFT JOIN exp_categories AS c ON c.id = t.category_id
+          GROUP BY substr(t.tx_date, 1, 7)
+          ORDER BY month DESC
+          LIMIT ?
+          `
+        )
+        .all(limit) as Array<{
+        month: string
+        income: number | null
+        expenses: number | null
+        transaction_count: number | null
+      }>
+
+      return rows.map((row) => ({
+        month: row.month,
+        income: Number(row.income || 0),
+        expenses: Number(row.expenses || 0),
+        net: Number(row.income || 0) - Number(row.expenses || 0),
+        transactionCount: Number(row.transaction_count || 0),
+      }))
+    })
+  }
+
+  getCategoryBreakdown(month?: string, limit = 8): CategoryBreakdownItem[] {
+    this.ensureSchema()
+
+    return this.withDatabase((db) => {
+      const rows = db
+        .prepare(
+          `
+          SELECT
+            COALESCE(c.name, 'Uncategorized') AS category_name,
+            ABS(SUM(COALESCE(t.amount_home, t.amount))) AS total,
+            COUNT(*) AS transaction_count
+          FROM exp_transactions AS t
+          LEFT JOIN exp_categories AS c ON c.id = t.category_id
+          WHERE COALESCE(c.kind, 'expense') = 'expense'
+            AND COALESCE(t.amount_home, t.amount) < 0
+            AND (? IS NULL OR substr(t.tx_date, 1, 7) = ?)
+          GROUP BY COALESCE(c.name, 'Uncategorized')
+          ORDER BY total DESC, category_name ASC
+          LIMIT ?
+          `
+        )
+        .all(month || null, month || null, limit) as Array<{
+        category_name: string
+        total: number | null
+        transaction_count: number | null
+      }>
+
+      const grandTotal = rows.reduce((sum, row) => sum + Number(row.total || 0), 0)
+
+      return rows.map((row) => ({
+        categoryName: row.category_name,
+        total: Number(row.total || 0),
+        percentage: grandTotal > 0 ? (Number(row.total || 0) / grandTotal) * 100 : 0,
+        transactionCount: Number(row.transaction_count || 0),
+      }))
+    })
+  }
+
+  getCashFlow(limit = 12): CashFlowPoint[] {
+    return this.getMonthlyAnalyticsSummary(limit).map((row) => ({
+      month: row.month,
+      income: row.income,
+      expenses: row.expenses,
+      net: row.net,
+    }))
+  }
+
+  getMerchantLeaderboard(month?: string, limit = 8): MerchantLeaderboardItem[] {
+    this.ensureSchema()
+
+    return this.withDatabase((db) => {
+      const rows = db
+        .prepare(
+          `
+          SELECT
+            m.id AS merchant_id,
+            COALESCE(m.name, t.description) AS merchant_name,
+            ABS(SUM(COALESCE(t.amount_home, t.amount))) AS total,
+            COUNT(*) AS transaction_count,
+            MAX(t.tx_date) AS last_transaction_date
+          FROM exp_transactions AS t
+          LEFT JOIN exp_categories AS c ON c.id = t.category_id
+          LEFT JOIN exp_merchants AS m ON m.id = t.merchant_id
+          WHERE COALESCE(c.kind, 'expense') = 'expense'
+            AND COALESCE(t.amount_home, t.amount) < 0
+            AND (? IS NULL OR substr(t.tx_date, 1, 7) = ?)
+          GROUP BY m.id, COALESCE(m.name, t.description)
+          ORDER BY total DESC, merchant_name ASC
+          LIMIT ?
+          `
+        )
+        .all(month || null, month || null, limit) as Array<{
+        merchant_id: number | null
+        merchant_name: string | null
+        total: number | null
+        transaction_count: number | null
+        last_transaction_date: string | null
+      }>
+
+      return rows.map((row) => ({
+        merchantId: row.merchant_id,
+        merchantName: row.merchant_name || 'Unknown merchant',
+        total: Number(row.total || 0),
+        transactionCount: Number(row.transaction_count || 0),
+        lastTransactionDate: row.last_transaction_date,
+      }))
     })
   }
 

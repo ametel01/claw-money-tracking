@@ -108,6 +108,40 @@ export function createExpensesApp(service: ExpensesService) {
     })
   )
 
+  app.get(
+    '/api/expenses/analytics/monthly-summary',
+    asyncHandler(async (request, response) => {
+      const limit = safeInt(request.query.limit, 12, 1, 60)
+      response.json(service.getMonthlyAnalyticsSummary(limit))
+    })
+  )
+
+  app.get(
+    '/api/expenses/analytics/category-breakdown',
+    asyncHandler(async (request, response) => {
+      const limit = safeInt(request.query.limit, 8, 1, 20)
+      const month = singleQueryValue(request.query.month)
+      response.json(service.getCategoryBreakdown(month || undefined, limit))
+    })
+  )
+
+  app.get(
+    '/api/expenses/analytics/cash-flow',
+    asyncHandler(async (request, response) => {
+      const limit = safeInt(request.query.limit, 12, 1, 60)
+      response.json(service.getCashFlow(limit))
+    })
+  )
+
+  app.get(
+    '/api/expenses/analytics/merchant-leaderboard',
+    asyncHandler(async (request, response) => {
+      const limit = safeInt(request.query.limit, 8, 1, 20)
+      const month = singleQueryValue(request.query.month)
+      response.json(service.getMerchantLeaderboard(month || undefined, limit))
+    })
+  )
+
   app.post(
     '/api/expenses/import-rows/:id/accept',
     asyncHandler(async (request, response) => {
@@ -233,4 +267,9 @@ function requireBodyId(raw: unknown, label: string): number {
   }
 
   return parsed
+}
+
+function singleQueryValue(raw: unknown): string | null {
+  const value = Array.isArray(raw) ? raw[0] : raw
+  return typeof value === 'string' && value.trim() ? value.trim() : null
 }

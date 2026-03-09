@@ -97,6 +97,36 @@ export interface CategorizationRuleRecord {
   createdAt: string
 }
 
+export interface MonthlyAnalyticsSummary {
+  month: string
+  income: number
+  expenses: number
+  net: number
+  transactionCount: number
+}
+
+export interface CategoryBreakdownItem {
+  categoryName: string
+  total: number
+  percentage: number
+  transactionCount: number
+}
+
+export interface CashFlowPoint {
+  month: string
+  income: number
+  expenses: number
+  net: number
+}
+
+export interface MerchantLeaderboardItem {
+  merchantId: number | null
+  merchantName: string
+  total: number
+  transactionCount: number
+  lastTransactionDate: string | null
+}
+
 export interface BackfillFxResponse extends ApiStatusResponse {
   updated?: number
 }

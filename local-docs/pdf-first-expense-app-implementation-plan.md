@@ -266,7 +266,7 @@ Failure modes:
 
 ## Phase 3: Move analytics to the server
 
-### Step 3.1: Add monthly analytics endpoints
+### Step 3.1: Add monthly analytics endpoints **COMPLETED**
 
 Files:
 

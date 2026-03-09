@@ -1,7 +1,30 @@
 import assert from 'node:assert/strict'
+import { copyFileSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 import test from 'node:test'
+import Database from 'better-sqlite3'
 import { buildSpendingPaceChart } from '../frontend/src/lib/analytics'
 import type { TransactionRecord } from '../frontend/src/types'
+import { ExpensesService } from '../server/expenses-service'
+
+const repoRoot = path.resolve(__dirname, '..')
+
+function createWorkspace(): string {
+  const root = mkdtempSync(path.join(os.tmpdir(), 'claw-money-tracking-analytics-'))
+  mkdirSync(path.join(root, 'expenses'), { recursive: true })
+  copyFileSync(
+    path.join(repoRoot, 'expenses', 'schema.sql'),
+    path.join(root, 'expenses', 'schema.sql')
+  )
+  return root
+}
+
+function openWorkspaceDb(root: string): Database.Database {
+  const db = new Database(path.join(root, 'money_dashboard.db'))
+  db.pragma('foreign_keys = ON')
+  return db
+}
 
 function makeExpense(
   id: number,
@@ -73,4 +96,175 @@ test('buildSpendingPaceChart projects the current month using elapsed days', () 
   assert.equal(model.comparisonToDate, 50)
   assert.ok(model.projectedTotal != null)
   assert.ok(Math.abs((model.projectedTotal ?? 0) - expectedProjection) < 0.0001)
+})
+
+test('server analytics endpoints aggregate monthly summaries from amount_home', (t) => {
+  const root = createWorkspace()
+  t.after(() => {
+    rmSync(root, { recursive: true, force: true })
+  })
+
+  const service = new ExpensesService(root)
+  service.ensureSchema()
+
+  const db = openWorkspaceDb(root)
+  t.after(() => {
+    db.close()
+  })
+
+  const accountId = Number(
+    db
+      .prepare('INSERT INTO exp_accounts(name, currency) VALUES(?, ?)')
+      .run('Analytics Wallet', 'USD').lastInsertRowid
+  )
+  const groceriesCategoryId = Number(
+    (db.prepare('SELECT id FROM exp_categories WHERE name = ?').get('Groceries') as { id: number })
+      .id
+  )
+  const salaryCategoryId = Number(
+    (db.prepare('SELECT id FROM exp_categories WHERE name = ?').get('Salary') as { id: number }).id
+  )
+  const transferCategoryId = Number(
+    (db.prepare('SELECT id FROM exp_categories WHERE name = ?').get('Transfer') as { id: number })
+      .id
+  )
+  const merchantId = Number(
+    db
+      .prepare('INSERT INTO exp_merchants(name, normalized_name) VALUES(?, ?)')
+      .run('Merchant Alpha', 'merchant alpha').lastInsertRowid
+  )
+  const insertTransaction = db.prepare(
+    `
+    INSERT INTO exp_transactions(
+      account_id,
+      tx_date,
+      posted_date,
+      description,
+      merchant_id,
+      category_id,
+      amount,
+      currency,
+      amount_original,
+      amount_home,
+      fx_rate_used,
+      fx_date,
+      source_hash
+    )
+    VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `
+  )
+
+  insertTransaction.run(
+    accountId,
+    '2026-02-05',
+    '2026-02-05',
+    'Merchant Alpha',
+    merchantId,
+    groceriesCategoryId,
+    -10,
+    'USD',
+    -10,
+    -580,
+    58,
+    '2026-02-05',
+    'analytics-1'
+  )
+  insertTransaction.run(
+    accountId,
+    '2026-02-09',
+    '2026-02-09',
+    'Salary',
+    null,
+    salaryCategoryId,
+    50,
+    'USD',
+    50,
+    2900,
+    58,
+    '2026-02-09',
+    'analytics-2'
+  )
+  insertTransaction.run(
+    accountId,
+    '2026-01-11',
+    '2026-01-11',
+    'Merchant Alpha',
+    merchantId,
+    groceriesCategoryId,
+    -5,
+    'USD',
+    -5,
+    -290,
+    58,
+    '2026-01-11',
+    'analytics-3'
+  )
+  insertTransaction.run(
+    accountId,
+    '2026-01-12',
+    '2026-01-12',
+    'Savings transfer',
+    null,
+    transferCategoryId,
+    -100,
+    'USD',
+    -100,
+    -5800,
+    58,
+    '2026-01-12',
+    'analytics-4'
+  )
+
+  const monthlySummary = service.getMonthlyAnalyticsSummary()
+  const categoryBreakdown = service.getCategoryBreakdown('2026-02')
+  const cashFlow = service.getCashFlow()
+  const merchantLeaderboard = service.getMerchantLeaderboard('2026-02')
+
+  assert.deepEqual(monthlySummary.slice(0, 2), [
+    {
+      month: '2026-02',
+      income: 2900,
+      expenses: 580,
+      net: 2320,
+      transactionCount: 2,
+    },
+    {
+      month: '2026-01',
+      income: 0,
+      expenses: 290,
+      net: -290,
+      transactionCount: 2,
+    },
+  ])
+  assert.deepEqual(categoryBreakdown, [
+    {
+      categoryName: 'Groceries',
+      total: 580,
+      percentage: 100,
+      transactionCount: 1,
+    },
+  ])
+  assert.deepEqual(cashFlow.slice(0, 2), [
+    {
+      month: '2026-02',
+      income: 2900,
+      expenses: 580,
+      net: 2320,
+    },
+    {
+      month: '2026-01',
+      income: 0,
+      expenses: 290,
+      net: -290,
+    },
+  ])
+  assert.deepEqual(merchantLeaderboard, [
+    {
+      merchantId,
+      merchantName: 'Merchant Alpha',
+      total: 580,
+      transactionCount: 1,
+      lastTransactionDate: '2026-02-05',
+    },
+  ])
 })
