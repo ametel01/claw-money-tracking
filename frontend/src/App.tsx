@@ -1,24 +1,31 @@
 import {
+  getCashFlow,
   getCategoryBreakdown,
+  getMerchantLeaderboard,
   getMonthlyAnalyticsSummary,
   getOverview,
   getSpendingPaceModel,
   getTransactions,
   toErrorMessage,
 } from '@/api/expenses'
+import { CashFlowCard } from '@/components/CashFlowCard'
 import { CategoryPie } from '@/components/CategoryPie'
 import { CurrencyControls } from '@/components/CurrencyControls'
 import { ImportForm } from '@/components/ImportForm'
 import { KpiCards } from '@/components/KpiCards'
 import { LineChart } from '@/components/LineChart'
+import { MerchantLeaderboardCard } from '@/components/MerchantLeaderboardCard'
 import { MonthTabs } from '@/components/MonthTabs'
+import { RecurringPreviewCard } from '@/components/RecurringPreviewCard'
 import { TransactionList } from '@/components/TransactionList'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { categoryBreakdownToPieSegments, monthlySummaryToMonthTabs } from '@/lib/analytics'
 import { monthLabel } from '@/lib/format'
 import type {
+  CashFlowPoint,
   CurrencyViewMode,
   LineChartModel,
+  MerchantLeaderboardItem,
   MonthSummary,
   OverviewResponse,
   PieSegment,
@@ -32,6 +39,8 @@ interface DashboardState {
   months: MonthSummary[]
   pieSegments: PieSegment[]
   lineChartModel: LineChartModel
+  cashFlow: CashFlowPoint[]
+  merchantLeaderboard: MerchantLeaderboardItem[]
   activeMonth: string | null
   viewMode: CurrencyViewMode
   loadStatus: { tone: 'loading' | 'success' | 'error'; message: string }
@@ -61,22 +70,26 @@ export function App() {
     months: [],
     pieSegments: [],
     lineChartModel: EMPTY_LINE_CHART,
+    cashFlow: [],
+    merchantLeaderboard: [],
     activeMonth: null,
     viewMode: 'home',
     loadStatus: { tone: 'loading', message: 'Loading dashboard…' },
   })
 
   const loadMonthData = useCallback(async (month: string | null) => {
-    const [transactions, breakdown, lineChartModel] = await Promise.all([
+    const [transactions, breakdown, lineChartModel, merchantLeaderboard] = await Promise.all([
       getTransactions(50000, month),
       getCategoryBreakdown(month ?? undefined),
       getSpendingPaceModel(month),
+      getMerchantLeaderboard(month ?? undefined),
     ])
 
     return {
       transactions,
       pieSegments: categoryBreakdownToPieSegments(breakdown),
       lineChartModel,
+      merchantLeaderboard,
     }
   }, [])
 
@@ -87,9 +100,10 @@ export function App() {
     }))
 
     try {
-      const [overview, monthlySummary] = await Promise.all([
+      const [overview, monthlySummary, cashFlow] = await Promise.all([
         getOverview(),
         getMonthlyAnalyticsSummary(),
+        getCashFlow(),
       ])
       const months = monthlySummaryToMonthTabs(monthlySummary)
       const selectedMonth =
@@ -106,6 +120,8 @@ export function App() {
         months,
         pieSegments: monthData.pieSegments,
         lineChartModel: monthData.lineChartModel,
+        cashFlow,
+        merchantLeaderboard: monthData.merchantLeaderboard,
         activeMonth: selectedMonth,
         loadStatus: {
           tone: 'success',
@@ -139,6 +155,7 @@ export function App() {
           transactions: monthData.transactions,
           pieSegments: monthData.pieSegments,
           lineChartModel: monthData.lineChartModel,
+          merchantLeaderboard: monthData.merchantLeaderboard,
           loadStatus: {
             tone: 'success',
             message: `Loaded ${monthData.transactions.length} transactions for ${monthLabel(month)}.`,
@@ -161,6 +178,8 @@ export function App() {
   const { overview, transactions, months, pieSegments, activeMonth, viewMode, loadStatus } = state
   const loading = loadStatus.tone === 'loading'
   const lineChartModel = state.lineChartModel
+  const cashFlow = state.cashFlow
+  const merchantLeaderboard = state.merchantLeaderboard
 
   return (
     <div className="w-full max-w-[1320px] mx-auto px-4 py-6 pb-16">
@@ -256,6 +275,48 @@ export function App() {
                 onMonthChange={(month) => void handleMonthChange(month)}
               />
               <LineChart model={lineChartModel} />
+            </CardContent>
+          </Card>
+        </section>
+
+        <section className="col-span-12 md:col-span-4">
+          <Card className="h-full">
+            <CardHeader>
+              <CardDescription className="text-[0.6rem] font-bold uppercase tracking-[0.16em]">
+                Cash Flow
+              </CardDescription>
+              <CardTitle>Monthly cash flow</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <CashFlowCard points={cashFlow} activeMonth={activeMonth} />
+            </CardContent>
+          </Card>
+        </section>
+
+        <section className="col-span-12 md:col-span-4">
+          <Card className="h-full">
+            <CardHeader>
+              <CardDescription className="text-[0.6rem] font-bold uppercase tracking-[0.16em]">
+                Merchants
+              </CardDescription>
+              <CardTitle>Merchant leaderboard</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <MerchantLeaderboardCard merchants={merchantLeaderboard} activeMonth={activeMonth} />
+            </CardContent>
+          </Card>
+        </section>
+
+        <section className="col-span-12 md:col-span-4">
+          <Card className="h-full">
+            <CardHeader>
+              <CardDescription className="text-[0.6rem] font-bold uppercase tracking-[0.16em]">
+                Recurring
+              </CardDescription>
+              <CardTitle>Recurring charges preview</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <RecurringPreviewCard />
             </CardContent>
           </Card>
         </section>
