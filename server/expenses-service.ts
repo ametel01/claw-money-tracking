@@ -301,15 +301,16 @@ export class ExpensesService {
       if (!row.account_id) {
         throw new Error(`import row ${rowId} is missing an account`)
       }
+      const accountId = row.account_id
       if (!row.parsed_tx_date || !row.parsed_description || row.parsed_amount == null) {
         throw new Error(
           `import row ${rowId} cannot be accepted without date, description, and amount`
         )
       }
 
-      const account = db
-        .prepare('SELECT currency FROM exp_accounts WHERE id = ?')
-        .get(row.account_id) as { currency: string | null } | undefined
+      const account = db.prepare('SELECT currency FROM exp_accounts WHERE id = ?').get(accountId) as
+        | { currency: string | null }
+        | undefined
       const accountCurrency = (account?.currency || 'PHP').toUpperCase()
       const fxRate = await this.getFxRate(
         db,
@@ -323,7 +324,7 @@ export class ExpensesService {
           db,
           row.parsed_description || '',
           Number(row.parsed_amount),
-          row.account_id
+          accountId
         )
         const amountOriginal = Number(row.parsed_amount)
         const amountHome = amountOriginal * fxRate
@@ -334,7 +335,12 @@ export class ExpensesService {
           confidence: Number(row.confidence || 0),
         }
         const merchantId = this.resolveMerchant(db, row.parsed_description)
-        const sourceHash = this.buildManualAcceptSourceHash(parsedEntry, row.raw_text, row.id)
+        const sourceHash = this.buildManualAcceptSourceHash(
+          accountId,
+          parsedEntry,
+          row.raw_text,
+          row.id
+        )
         const insertResult = db
           .prepare(
             `
@@ -358,7 +364,7 @@ export class ExpensesService {
             `
           )
           .run(
-            row.account_id,
+            accountId,
             row.parsed_tx_date,
             row.posted_date || row.parsed_tx_date,
             row.parsed_description,
@@ -616,7 +622,7 @@ export class ExpensesService {
             confidence: normalizedRow.confidence,
           }
 
-          if (this.transactionExists(db, transactionCandidate, rawText)) {
+          if (this.transactionExists(db, accountId, transactionCandidate, rawText)) {
             status = 'duplicate'
           } else {
             const categoryId = this.pickCategory(
@@ -650,7 +656,7 @@ export class ExpensesService {
                 transactionCandidate.tx_date,
                 categoryId,
                 batchId,
-                this.buildSourceHash(transactionCandidate, rawText)
+                this.buildSourceHash(accountId, transactionCandidate, rawText)
               )
               insertedCount += 1
               status = 'accepted'
@@ -2021,10 +2027,11 @@ export class ExpensesService {
 
   private transactionExists(
     db: Database.Database,
+    accountId: number,
     parsedEntry: ParsedExpenseTransaction,
     rawLine: string
   ): boolean {
-    const sourceHash = this.buildSourceHash(parsedEntry, rawLine)
+    const sourceHash = this.buildSourceHash(accountId, parsedEntry, rawLine)
     const byHash = db
       .prepare('SELECT 1 FROM exp_transactions WHERE source_hash = ? LIMIT 1')
       .get(sourceHash)
@@ -2037,30 +2044,36 @@ export class ExpensesService {
         `
         SELECT 1
         FROM exp_transactions
-        WHERE tx_date = ?
+        WHERE account_id = ?
+          AND tx_date = ?
           AND lower(trim(description)) = lower(trim(?))
           AND amount = ?
         LIMIT 1
         `
       )
-      .get(parsedEntry.tx_date, parsedEntry.description, parsedEntry.amount)
+      .get(accountId, parsedEntry.tx_date, parsedEntry.description, parsedEntry.amount)
 
     return Boolean(byBusinessKey)
   }
 
-  private buildSourceHash(parsedEntry: ParsedExpenseTransaction, rawLine: string): string {
+  private buildSourceHash(
+    accountId: number,
+    parsedEntry: ParsedExpenseTransaction,
+    rawLine: string
+  ): string {
     const normalizedLine = rawLine.trim().toLowerCase().replace(/\s+/g, ' ')
-    const source = `${parsedEntry.tx_date}|${parsedEntry.description.trim().toLowerCase()}|${parsedEntry.amount.toFixed(2)}|${normalizedLine}`
+    const source = `${accountId}|${parsedEntry.tx_date}|${parsedEntry.description.trim().toLowerCase()}|${parsedEntry.amount.toFixed(2)}|${normalizedLine}`
     return createHash('sha256').update(source).digest('hex')
   }
 
   private buildManualAcceptSourceHash(
+    accountId: number,
     parsedEntry: ParsedExpenseTransaction,
     rawLine: string,
     rowId: number
   ): string {
     const normalizedLine = rawLine.trim().toLowerCase().replace(/\s+/g, ' ')
-    const source = `${parsedEntry.tx_date}|${parsedEntry.description.trim().toLowerCase()}|${parsedEntry.amount.toFixed(2)}|${normalizedLine}|manual-accept|${rowId}`
+    const source = `${accountId}|${parsedEntry.tx_date}|${parsedEntry.description.trim().toLowerCase()}|${parsedEntry.amount.toFixed(2)}|${normalizedLine}|manual-accept|${rowId}`
     return createHash('sha256').update(source).digest('hex')
   }
 

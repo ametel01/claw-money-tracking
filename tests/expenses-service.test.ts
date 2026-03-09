@@ -575,7 +575,7 @@ test('importPdfStatement prefers account-scoped categorization rules over global
   ])
 })
 
-test('regression: business-key dedupe ignores account_id', async (t) => {
+test('importPdfStatement allows identical business keys across accounts', async (t) => {
   const root = createWorkspace()
   t.after(() => {
     rmSync(root, { recursive: true, force: true })
@@ -596,7 +596,7 @@ test('regression: business-key dedupe ignores account_id', async (t) => {
   )
 
   assert.equal(firstImport.insertedTransactions, 1)
-  assert.equal(secondImport.insertedTransactions, 0)
+  assert.equal(secondImport.insertedTransactions, 1)
 
   const db = openWorkspaceDb(root)
   t.after(() => {
@@ -622,6 +622,12 @@ test('regression: business-key dedupe ignores account_id', async (t) => {
   assert.deepEqual(rows, [
     {
       account_name: 'Wallet A',
+      tx_date: '2026-01-03',
+      description: 'Coffee Shop',
+      amount: -9.99,
+    },
+    {
+      account_name: 'Wallet B',
       tx_date: '2026-01-03',
       description: 'Coffee Shop',
       amount: -9.99,

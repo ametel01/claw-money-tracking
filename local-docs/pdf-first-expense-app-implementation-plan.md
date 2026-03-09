@@ -215,7 +215,7 @@ Failure modes:
 
 - If rule precedence is undefined, identical patterns will produce unstable categorization.
 
-### Step 2.3: Fix dedupe semantics to include account scope
+### Step 2.3: Fix dedupe semantics to include account scope **COMPLETED**
 
 Files:
 
