@@ -1,8 +1,5 @@
-__pycache__/
-*.pyc
-dashboard/server.stdout.log
-dashboard/server.stderr.log
 imports/raw/
+dist/
 node_modules/
 Account Activities.pdf
 account-statement_*.pdf
