@@ -8,6 +8,13 @@ import { ExpensesService, type ParsedExpenseTransaction } from '../server/expens
 
 const repoRoot = path.resolve(__dirname, '..')
 const fixturesRoot = path.join(repoRoot, 'tests', 'fixtures', 'statements')
+const fixtureParserProfiles = {
+  generic_numeric: 'generic_numeric',
+  revolut: 'revolut_compact_statement',
+  multiline: 'generic_numeric',
+  bpi_account_activities_redacted: 'bpi_account_activities',
+  revolut_usd_statement_redacted: 'revolut_usd_statement',
+} as const
 
 function loadFixture(caseName: string): [string, ParsedExpenseTransaction[]] {
   const caseRoot = path.join(fixturesRoot, caseName)
@@ -46,18 +53,18 @@ function stubParsedImportRows(
 ): void {
   ;(
     service as {
-      parsePdfImportRows: (lines: string[]) => Array<Record<string, unknown>>
+      parsePdfDocument: (lines: string[]) => {
+        parserProfile: string
+        rows: Array<Record<string, unknown>>
+      }
     }
-  ).parsePdfImportRows = (_lines) => rows
+  ).parsePdfDocument = (_lines) => ({
+    parserProfile: 'generic_numeric',
+    rows,
+  })
 }
 
-for (const caseName of [
-  'generic_numeric',
-  'revolut',
-  'multiline',
-  'bpi_account_activities_redacted',
-  'revolut_usd_statement_redacted',
-]) {
+for (const caseName of Object.keys(fixtureParserProfiles)) {
   test(`parsePdfLines matches fixture: ${caseName}`, () => {
     const service = new ExpensesService(repoRoot)
     const [statementText, expectedRows] = loadFixture(caseName)
@@ -67,6 +74,41 @@ for (const caseName of [
     assert.deepEqual(parsedRows, expectedRows)
   })
 }
+
+for (const [caseName, expectedProfile] of Object.entries(fixtureParserProfiles)) {
+  test(`importPdfStatement preserves parser profile metadata: ${caseName}`, async (t) => {
+    const root = createWorkspace()
+    t.after(() => {
+      rmSync(root, { recursive: true, force: true })
+    })
+
+    const [statementText] = loadFixture(caseName)
+    const service = new ExpensesService(root)
+    stubExtractedStatementText(service, statementText)
+
+    const result = await service.importPdfStatement(
+      `Parser profile ${caseName}`,
+      `${caseName}.pdf`,
+      Buffer.from('%PDF-1.4 fixture')
+    )
+
+    const batch = service.getImportBatch(result.batchId)
+
+    assert.equal(batch.parserProfile, expectedProfile)
+  })
+}
+
+test('fixture coverage exercises every active parser profile', () => {
+  assert.deepEqual(
+    new Set(Object.values(fixtureParserProfiles)),
+    new Set([
+      'generic_numeric',
+      'bpi_account_activities',
+      'revolut_compact_statement',
+      'revolut_usd_statement',
+    ])
+  )
+})
 
 test('importPdfStatement deduplicates fixture rows', async (t) => {
   const root = createWorkspace()
@@ -221,8 +263,11 @@ test('importPdfStatement records accepted raw rows with review fields', async (t
     expectedRows.map((row) => row.description)
   )
   assert.ok(statuses.every((row) => row.merchant_candidate === row.reference_text))
-  assert.ok(statuses.every((row) => row.parse_notes == null))
+  assert.ok(statuses.every((row) => row.parse_notes === 'accepted by generic parser fallback'))
   assert.ok(statuses.every((row) => row.transaction_id != null))
+
+  const batch = service.getImportBatch(result.batchId)
+  assert.equal(batch.parserProfile, 'generic_numeric')
 })
 
 test('importPdfStatement marks low-confidence and incomplete rows as needs_review', async (t) => {

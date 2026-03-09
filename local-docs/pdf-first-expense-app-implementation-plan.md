@@ -133,7 +133,7 @@ Failure modes:
 - If accept/reject mutates transactions without transaction boundaries, review actions can leave the DB half-updated.
 - If route payloads are untyped in the frontend, UI work will drift from the API contract.
 
-### Step 1.3: Improve parser observability before adding more bank formats
+### Step 1.3: Improve parser observability before adding more bank formats **COMPLETED**
 
 Files:
 

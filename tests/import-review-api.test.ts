@@ -32,9 +32,15 @@ function stubParsedImportRows(
 ): void {
   ;(
     service as {
-      parsePdfImportRows: (lines: string[]) => Array<Record<string, unknown>>
+      parsePdfDocument: (lines: string[]) => {
+        parserProfile: string
+        rows: Array<Record<string, unknown>>
+      }
     }
-  ).parsePdfImportRows = (_lines) => rows
+  ).parsePdfDocument = (_lines) => ({
+    parserProfile: 'generic_numeric',
+    rows,
+  })
 }
 
 async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {

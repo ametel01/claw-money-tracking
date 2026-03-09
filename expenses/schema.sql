@@ -62,6 +62,7 @@ CREATE TABLE IF NOT EXISTS exp_import_batches (
   source_type TEXT NOT NULL DEFAULT 'pdf',
   source_filename TEXT,
   account_id INTEGER REFERENCES exp_accounts(id) ON DELETE SET NULL,
+  parser_profile TEXT,
   status TEXT NOT NULL DEFAULT 'parsed' CHECK(status IN ('queued','parsed','reviewed','done','error')),
   total_rows INTEGER NOT NULL DEFAULT 0,
   inserted_rows INTEGER NOT NULL DEFAULT 0,

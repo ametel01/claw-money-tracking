@@ -47,6 +47,7 @@ export interface ImportBatchSummary {
   sourceFilename: string | null
   accountId: number | null
   accountName: string | null
+  parserProfile: string | null
   status: string
   totalRows: number
   insertedRows: number

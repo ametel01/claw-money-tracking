@@ -23,6 +23,12 @@ interface ParsedImportRow {
   parseNotes: string | null
 }
 
+type ParserProfile =
+  | 'generic_numeric'
+  | 'bpi_account_activities'
+  | 'revolut_usd_statement'
+  | 'revolut_compact_statement'
+
 interface TableInfoRow {
   name: string
 }
@@ -47,6 +53,7 @@ export interface ImportBatchSummary {
   sourceFilename: string | null
   accountId: number | null
   accountName: string | null
+  parserProfile: string | null
   status: string
   totalRows: number
   insertedRows: number
@@ -123,6 +130,7 @@ interface ImportBatchSummaryRow {
   source_filename: string | null
   account_id: number | null
   account_name: string | null
+  parser_profile: string | null
   status: string
   total_rows: number
   inserted_rows: number
@@ -504,7 +512,8 @@ export class ExpensesService {
 
     const pdfPath = this.saveUploadBytes(filename, content, this.importsDir)
     const text = await this.extractPdfText(pdfPath)
-    const parsedRows = this.parsePdfImportRows(text.split(/\r?\n/).filter((line) => line.trim()))
+    const parsedDocument = this.parsePdfDocument(text.split(/\r?\n/).filter((line) => line.trim()))
+    const { parserProfile, rows: parsedRows } = parsedDocument
 
     return this.withDatabase(async (db) => {
       const accountId = this.getOrCreateAccount(db, accountName)
@@ -516,11 +525,18 @@ export class ExpensesService {
       const batchResult = db
         .prepare(
           `
-          INSERT INTO exp_import_batches(source_type, source_filename, account_id, status, total_rows)
-          VALUES('pdf', ?, ?, ?, 0)
+          INSERT INTO exp_import_batches(
+            source_type,
+            source_filename,
+            account_id,
+            parser_profile,
+            status,
+            total_rows
+          )
+          VALUES('pdf', ?, ?, ?, ?, 0)
           `
         )
-        .run(path.basename(pdfPath), accountId, 'parsed')
+        .run(path.basename(pdfPath), accountId, parserProfile, 'parsed')
       const batchId = Number(batchResult.lastInsertRowid)
 
       let parsedCount = 0
@@ -572,7 +588,11 @@ export class ExpensesService {
         const rawText = this.buildRawImportText(normalizedRow)
         const referenceText = normalizedRow.referenceText ?? normalizedRow.description
         const merchantCandidate = normalizedRow.merchantCandidate ?? normalizedRow.description
-        const reviewNotes = this.buildReviewNotes(normalizedRow)
+        const reviewIssues = this.buildReviewIssues(normalizedRow)
+        const parseNotes = [
+          ...reviewIssues,
+          ...(normalizedRow.parseNotes ? [normalizedRow.parseNotes] : []),
+        ]
         let status: 'accepted' | 'duplicate' | 'needs_review' = 'needs_review'
         let transactionId: number | null = null
 
@@ -580,7 +600,7 @@ export class ExpensesService {
           normalizedRow.txDate &&
           normalizedRow.description &&
           normalizedRow.amount != null &&
-          reviewNotes.length === 0
+          reviewIssues.length === 0
         ) {
           const transactionCandidate: ParsedExpenseTransaction = {
             tx_date: normalizedRow.txDate,
@@ -649,7 +669,7 @@ export class ExpensesService {
           referenceText,
           normalizedRow.amount,
           normalizedRow.confidence,
-          reviewNotes.join('; ') || null,
+          parseNotes.join('; ') || null,
           status,
           transactionId
         )
@@ -679,6 +699,11 @@ export class ExpensesService {
           (row) => row.name
         )
       )
+      const batchColumns = new Set(
+        (db.prepare('PRAGMA table_info(exp_import_batches)').all() as TableInfoRow[]).map(
+          (row) => row.name
+        )
+      )
       const rawImportColumns = new Set(
         (db.prepare('PRAGMA table_info(exp_import_rows_raw)').all() as TableInfoRow[]).map(
           (row) => row.name
@@ -699,6 +724,9 @@ export class ExpensesService {
       }
       if (!existingColumns.has('fx_date')) {
         db.exec('ALTER TABLE exp_transactions ADD COLUMN fx_date TEXT')
+      }
+      if (!batchColumns.has('parser_profile')) {
+        db.exec('ALTER TABLE exp_import_batches ADD COLUMN parser_profile TEXT')
       }
       if (!rawImportColumns.has('posted_date')) {
         db.exec('ALTER TABLE exp_import_rows_raw ADD COLUMN posted_date TEXT')
@@ -762,19 +790,61 @@ export class ExpensesService {
   }
 
   parsePdfLines(lines: string[]): ParsedExpenseTransaction[] {
+    return this.parsePdfDocument(lines).rows.map((row) => ({
+      tx_date: row.txDate || '',
+      description: row.description || '',
+      amount: Number(row.amount || 0),
+      confidence: row.confidence,
+    }))
+  }
+
+  private parsePdfDocument(lines: string[]): {
+    parserProfile: ParserProfile
+    rows: ParsedImportRow[]
+  } {
+    const parserProfile = this.detectParserProfile(lines)
+
+    return {
+      parserProfile,
+      rows: this.parsePdfLinesForProfile(lines, parserProfile).map((row) =>
+        this.toParsedImportRow(row, parserProfile)
+      ),
+    }
+  }
+
+  private detectParserProfile(lines: string[]): ParserProfile {
     if (this.looksLikeBpiAccountActivities(lines)) {
-      return this.parseBpiAccountActivities(lines)
+      return 'bpi_account_activities'
     }
 
     if (this.looksLikeRevolutStatement(lines)) {
+      return 'revolut_usd_statement'
+    }
+
+    if (this.looksLikeCompactRevolutStatement(lines)) {
+      return 'revolut_compact_statement'
+    }
+
+    return 'generic_numeric'
+  }
+
+  private parsePdfLinesForProfile(
+    lines: string[],
+    parserProfile: ParserProfile
+  ): ParsedExpenseTransaction[] {
+    if (parserProfile === 'bpi_account_activities') {
+      return this.parseBpiAccountActivities(lines)
+    }
+
+    if (parserProfile === 'revolut_usd_statement') {
       return this.parseRevolutStatement(lines)
     }
 
-    return this.parseGenericPdfLines(lines)
-  }
+    if (parserProfile === 'revolut_compact_statement') {
+      return this.parseCompactRevolutStatement(lines)
+    }
 
-  private parsePdfImportRows(lines: string[]): ParsedImportRow[] {
-    return this.parsePdfLines(lines).map((row) => this.toParsedImportRow(row))
+    return this.parseGenericPdfLines(lines)
   }
 
   cleanupExistingTransactionDescriptions(db: Database.Database): void {
@@ -1090,6 +1160,27 @@ export class ExpensesService {
     )
   }
 
+  private looksLikeCompactRevolutStatement(lines: string[]): boolean {
+    return lines.some((line) =>
+      /^\d{1,2}\s+[A-Za-z]{3}\s+\d{4}\s+.+\s+\$[\d,]+\.\d{2}(?:\s+\$[\d,]+\.\d{2})?$/.test(
+        line.trim()
+      )
+    )
+  }
+
+  private parseCompactRevolutStatement(lines: string[]): ParsedExpenseTransaction[] {
+    const parsedRows: ParsedExpenseTransaction[] = []
+
+    for (const rawLine of lines) {
+      const parsedRow = this.parseTransactionLine(rawLine.trim())
+      if (parsedRow) {
+        parsedRows.push(parsedRow)
+      }
+    }
+
+    return parsedRows
+  }
+
   private parseRevolutStatement(lines: string[]): ParsedExpenseTransaction[] {
     const parsedRows: ParsedExpenseTransaction[] = []
     let currentHeader: string | null = null
@@ -1394,7 +1485,10 @@ export class ExpensesService {
     }
   }
 
-  private toParsedImportRow(row: ParsedExpenseTransaction): ParsedImportRow {
+  private toParsedImportRow(
+    row: ParsedExpenseTransaction,
+    parserProfile: ParserProfile
+  ): ParsedImportRow {
     const description = this.normalizeOptionalText(row.description)
     return {
       txDate: this.normalizeOptionalText(row.tx_date),
@@ -1405,7 +1499,10 @@ export class ExpensesService {
       rawText: `${row.tx_date} ${row.description} ${row.amount}`.trim(),
       merchantCandidate: description,
       referenceText: description,
-      parseNotes: null,
+      parseNotes:
+        parserProfile === 'generic_numeric' && row.confidence >= IMPORT_ACCEPTANCE_CONFIDENCE
+          ? 'accepted by generic parser fallback'
+          : null,
     }
   }
 
@@ -1432,7 +1529,7 @@ export class ExpensesService {
     return row.rawText || fallback || 'Unparsed import row'
   }
 
-  private buildReviewNotes(row: ParsedImportRow): string[] {
+  private buildReviewIssues(row: ParsedImportRow): string[] {
     const notes = new Set<string>()
 
     if (!row.txDate) {
@@ -1446,9 +1543,6 @@ export class ExpensesService {
     }
     if (row.confidence < IMPORT_ACCEPTANCE_CONFIDENCE) {
       notes.add(`confidence ${row.confidence.toFixed(2)} below import threshold`)
-    }
-    if (row.parseNotes) {
-      notes.add(row.parseNotes)
     }
 
     return [...notes]
@@ -1464,6 +1558,7 @@ export class ExpensesService {
           b.source_filename,
           b.account_id,
           a.name AS account_name,
+          b.parser_profile,
           b.status,
           b.total_rows,
           b.inserted_rows,
@@ -1477,7 +1572,7 @@ export class ExpensesService {
         FROM exp_import_batches AS b
         LEFT JOIN exp_accounts AS a ON a.id = b.account_id
         LEFT JOIN exp_import_rows_raw AS r ON r.batch_id = b.id
-        GROUP BY b.id, b.source_type, b.source_filename, b.account_id, a.name, b.status, b.total_rows, b.inserted_rows, b.parse_notes, b.created_at
+        GROUP BY b.id, b.source_type, b.source_filename, b.account_id, a.name, b.parser_profile, b.status, b.total_rows, b.inserted_rows, b.parse_notes, b.created_at
         ORDER BY b.id DESC
         LIMIT ?
         `
@@ -1497,6 +1592,7 @@ export class ExpensesService {
           b.source_filename,
           b.account_id,
           a.name AS account_name,
+          b.parser_profile,
           b.status,
           b.total_rows,
           b.inserted_rows,
@@ -1511,7 +1607,7 @@ export class ExpensesService {
         LEFT JOIN exp_accounts AS a ON a.id = b.account_id
         LEFT JOIN exp_import_rows_raw AS r ON r.batch_id = b.id
         WHERE b.id = ?
-        GROUP BY b.id, b.source_type, b.source_filename, b.account_id, a.name, b.status, b.total_rows, b.inserted_rows, b.parse_notes, b.created_at
+        GROUP BY b.id, b.source_type, b.source_filename, b.account_id, a.name, b.parser_profile, b.status, b.total_rows, b.inserted_rows, b.parse_notes, b.created_at
         LIMIT 1
         `
       )
@@ -1561,6 +1657,7 @@ export class ExpensesService {
       sourceFilename: row.source_filename,
       accountId: row.account_id,
       accountName: row.account_name,
+      parserProfile: row.parser_profile,
       status: row.status,
       totalRows: Number(row.total_rows || 0),
       insertedRows: Number(row.inserted_rows || 0),
