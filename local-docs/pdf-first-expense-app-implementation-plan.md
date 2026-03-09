@@ -412,7 +412,7 @@ Failure modes:
 
 - If budget rows are stored in account currency instead of a normalized home currency, cross-account reporting will become inconsistent.
 
-### Step 5.2: Add budget-vs-actual dashboard views
+### Step 5.2: Add budget-vs-actual dashboard views **COMPLETED**
 
 Files:
 

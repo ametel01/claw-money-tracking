@@ -1,5 +1,6 @@
 import {
   acceptImportRow,
+  getBudgetPeriods,
   getCashFlow,
   getCategoryBreakdown,
   getImportBatch,
@@ -12,6 +13,7 @@ import {
   rejectImportRow,
   toErrorMessage,
 } from '@/api/expenses'
+import { BudgetProgressCard } from '@/components/BudgetProgressCard'
 import { CashFlowCard } from '@/components/CashFlowCard'
 import { CategoryPie } from '@/components/CategoryPie'
 import { CurrencyControls } from '@/components/CurrencyControls'
@@ -28,6 +30,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { categoryBreakdownToPieSegments, monthlySummaryToMonthTabs } from '@/lib/analytics'
 import { monthLabel } from '@/lib/format'
 import type {
+  BudgetPeriodRecord,
   CashFlowPoint,
   CurrencyViewMode,
   ImportBatchDetail,
@@ -50,6 +53,7 @@ interface DashboardState {
   merchantLeaderboard: MerchantLeaderboardItem[]
   latestImportBatch: ImportBatchDetail | null
   busyReviewRowId: number | null
+  budgetPeriods: BudgetPeriodRecord[]
   activeMonth: string | null
   viewMode: CurrencyViewMode
   loadStatus: { tone: 'loading' | 'success' | 'error'; message: string }
@@ -83,6 +87,7 @@ export function App() {
     merchantLeaderboard: [],
     latestImportBatch: null,
     busyReviewRowId: null,
+    budgetPeriods: [],
     activeMonth: null,
     viewMode: 'home',
     loadStatus: { tone: 'loading', message: 'Loading dashboard…' },
@@ -111,11 +116,12 @@ export function App() {
     }))
 
     try {
-      const [overview, monthlySummary, cashFlow, latestBatches] = await Promise.all([
+      const [overview, monthlySummary, cashFlow, latestBatches, budgetPeriods] = await Promise.all([
         getOverview(),
         getMonthlyAnalyticsSummary(),
         getCashFlow(),
         getImportBatches(1),
+        getBudgetPeriods(),
       ])
       const months = monthlySummaryToMonthTabs(monthlySummary)
       const selectedMonth =
@@ -138,6 +144,7 @@ export function App() {
         cashFlow,
         merchantLeaderboard: monthData.merchantLeaderboard,
         latestImportBatch,
+        budgetPeriods,
         activeMonth: selectedMonth,
         loadStatus: {
           tone: 'success',
@@ -227,11 +234,13 @@ export function App() {
     loadStatus,
     latestImportBatch,
     busyReviewRowId,
+    budgetPeriods,
   } = state
   const loading = loadStatus.tone === 'loading'
   const lineChartModel = state.lineChartModel
   const cashFlow = state.cashFlow
   const merchantLeaderboard = state.merchantLeaderboard
+  const activeBudgetPeriod = budgetPeriods.find((period) => period.month === activeMonth) ?? null
   const latestBatchSummary = latestImportBatch
     ? `${latestImportBatch.counts.needs_review} need review, ${latestImportBatch.counts.duplicate} duplicates in the latest batch.`
     : undefined
@@ -400,6 +409,20 @@ export function App() {
                 onAccept={(rowId) => handleReviewAction(rowId, 'accept')}
                 onReject={(rowId) => handleReviewAction(rowId, 'reject')}
               />
+            </CardContent>
+          </Card>
+        </section>
+
+        <section className="col-span-12">
+          <Card>
+            <CardHeader>
+              <CardDescription className="text-[0.6rem] font-bold uppercase tracking-[0.16em]">
+                Budget
+              </CardDescription>
+              <CardTitle>Budget vs actual</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <BudgetProgressCard period={activeBudgetPeriod} />
             </CardContent>
           </Card>
         </section>
