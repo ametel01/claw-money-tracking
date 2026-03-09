@@ -21,6 +21,10 @@ CREATE TABLE IF NOT EXISTS exp_merchants (
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE UNIQUE INDEX IF NOT EXISTS idx_exp_merchants_normalized_name
+  ON exp_merchants(normalized_name)
+  WHERE normalized_name IS NOT NULL;
+
 CREATE TABLE IF NOT EXISTS exp_transactions (
   id INTEGER PRIMARY KEY,
   account_id INTEGER NOT NULL REFERENCES exp_accounts(id) ON DELETE RESTRICT,

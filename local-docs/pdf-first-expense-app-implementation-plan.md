@@ -158,7 +158,7 @@ Failure modes:
 
 ## Phase 2: Make transactions structured
 
-### Step 2.1: Start using `exp_merchants`
+### Step 2.1: Start using `exp_merchants` **COMPLETED**
 
 Files:
 

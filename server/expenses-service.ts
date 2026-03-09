@@ -332,6 +332,7 @@ export class ExpensesService {
           amount: amountOriginal,
           confidence: Number(row.confidence || 0),
         }
+        const merchantId = this.resolveMerchant(db, row.parsed_description)
         const sourceHash = this.buildManualAcceptSourceHash(parsedEntry, row.raw_text, row.id)
         const insertResult = db
           .prepare(
@@ -341,6 +342,7 @@ export class ExpensesService {
               tx_date,
               posted_date,
               description,
+              merchant_id,
               amount,
               currency,
               amount_original,
@@ -351,7 +353,7 @@ export class ExpensesService {
               import_batch_id,
               source_hash
             )
-            VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `
           )
           .run(
@@ -359,6 +361,7 @@ export class ExpensesService {
             row.parsed_tx_date,
             row.posted_date || row.parsed_tx_date,
             row.parsed_description,
+            merchantId,
             amountOriginal,
             accountCurrency,
             amountOriginal,
@@ -568,6 +571,7 @@ export class ExpensesService {
           tx_date,
           posted_date,
           description,
+          merchant_id,
           amount,
           currency,
           amount_original,
@@ -578,7 +582,7 @@ export class ExpensesService {
           import_batch_id,
           source_hash
         )
-        VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `
       )
 
@@ -587,7 +591,9 @@ export class ExpensesService {
         const normalizedRow = this.normalizeParsedImportRow(parsedRow)
         const rawText = this.buildRawImportText(normalizedRow)
         const referenceText = normalizedRow.referenceText ?? normalizedRow.description
-        const merchantCandidate = normalizedRow.merchantCandidate ?? normalizedRow.description
+        const merchantCandidate =
+          normalizedRow.merchantCandidate ??
+          this.extractMerchantCandidate(normalizedRow.description)
         const reviewIssues = this.buildReviewIssues(normalizedRow)
         const parseNotes = [
           ...reviewIssues,
@@ -617,6 +623,7 @@ export class ExpensesService {
               transactionCandidate.description,
               transactionCandidate.amount
             )
+            const merchantId = this.resolveMerchant(db, transactionCandidate.description)
             const fxRate = await this.getFxRate(
               db,
               accountCurrency,
@@ -632,6 +639,7 @@ export class ExpensesService {
                 transactionCandidate.tx_date,
                 normalizedRow.postedDate ?? transactionCandidate.tx_date,
                 transactionCandidate.description,
+                merchantId,
                 amountOriginal,
                 accountCurrency,
                 amountOriginal,
@@ -699,6 +707,11 @@ export class ExpensesService {
           (row) => row.name
         )
       )
+      const merchantColumns = new Set(
+        (db.prepare('PRAGMA table_info(exp_merchants)').all() as TableInfoRow[]).map(
+          (row) => row.name
+        )
+      )
       const batchColumns = new Set(
         (db.prepare('PRAGMA table_info(exp_import_batches)').all() as TableInfoRow[]).map(
           (row) => row.name
@@ -716,6 +729,11 @@ export class ExpensesService {
       if (!existingColumns.has('posted_date')) {
         db.exec('ALTER TABLE exp_transactions ADD COLUMN posted_date TEXT')
       }
+      if (!existingColumns.has('merchant_id')) {
+        db.exec(
+          'ALTER TABLE exp_transactions ADD COLUMN merchant_id INTEGER REFERENCES exp_merchants(id) ON DELETE SET NULL'
+        )
+      }
       if (!existingColumns.has('amount_home')) {
         db.exec('ALTER TABLE exp_transactions ADD COLUMN amount_home REAL')
       }
@@ -724,6 +742,9 @@ export class ExpensesService {
       }
       if (!existingColumns.has('fx_date')) {
         db.exec('ALTER TABLE exp_transactions ADD COLUMN fx_date TEXT')
+      }
+      if (!merchantColumns.has('normalized_name')) {
+        db.exec('ALTER TABLE exp_merchants ADD COLUMN normalized_name TEXT')
       }
       if (!batchColumns.has('parser_profile')) {
         db.exec('ALTER TABLE exp_import_batches ADD COLUMN parser_profile TEXT')
@@ -1497,7 +1518,7 @@ export class ExpensesService {
       amount: Number.isFinite(row.amount) ? row.amount : null,
       confidence: Number.isFinite(row.confidence) ? row.confidence : 0,
       rawText: `${row.tx_date} ${row.description} ${row.amount}`.trim(),
-      merchantCandidate: description,
+      merchantCandidate: this.extractMerchantCandidate(description),
       referenceText: description,
       parseNotes:
         parserProfile === 'generic_numeric' && row.confidence >= IMPORT_ACCEPTANCE_CONFIDENCE
@@ -1830,6 +1851,79 @@ export class ExpensesService {
     }
 
     return rawDate
+  }
+
+  private resolveMerchant(db: Database.Database, description: string | null): number | null {
+    const merchantCandidate = this.extractMerchantCandidate(description)
+    if (!merchantCandidate) {
+      return null
+    }
+
+    const normalizedMerchant = this.normalizeMerchantName(merchantCandidate)
+    if (!normalizedMerchant) {
+      return null
+    }
+
+    const existingMerchant = db
+      .prepare(
+        `
+        SELECT id
+        FROM exp_merchants
+        WHERE normalized_name = ?
+        LIMIT 1
+        `
+      )
+      .get(normalizedMerchant) as { id: number } | undefined
+    if (existingMerchant) {
+      return existingMerchant.id
+    }
+
+    const displayName = this.canonicalizeMerchantName(merchantCandidate)
+    const insertResult = db
+      .prepare(
+        `
+        INSERT INTO exp_merchants(name, normalized_name)
+        VALUES(?, ?)
+        `
+      )
+      .run(displayName, normalizedMerchant)
+
+    return Number(insertResult.lastInsertRowid)
+  }
+
+  private extractMerchantCandidate(description: string | null): string | null {
+    const normalizedDescription = this.normalizeOptionalText(description)
+    if (!normalizedDescription) {
+      return null
+    }
+
+    let candidate = normalizedDescription
+      .replace(
+        /^(card payment|payment to|purchase|debit card purchase|online purchase|cash withdrawal at)\s+/i,
+        ''
+      )
+      .replace(/\s+/g, ' ')
+      .trim()
+
+    candidate = candidate.replace(/^[^A-Za-z0-9]+|[^A-Za-z0-9]+$/g, '').trim()
+
+    return candidate || normalizedDescription
+  }
+
+  private normalizeMerchantName(merchantCandidate: string): string | null {
+    const normalized = merchantCandidate
+      .normalize('NFKD')
+      .replace(/[^\w\s]/g, ' ')
+      .replace(/\b(inc|ltd|llc|corp|corporation|co)\b/gi, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase()
+
+    return normalized || null
+  }
+
+  private canonicalizeMerchantName(merchantCandidate: string): string {
+    return this.smartTitleCase(merchantCandidate.replace(/[^\w\s&/-]+/g, ' ').replace(/\s+/g, ' '))
   }
 
   private pickCategory(db: Database.Database, description: string, amount: number): number | null {

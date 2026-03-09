@@ -432,6 +432,67 @@ test('import review service lists batches and supports accept/reject transitions
   assert.equal(txCount, 0)
 })
 
+test('importPdfStatement populates merchant_id without rewriting descriptions', async (t) => {
+  const root = createWorkspace()
+  t.after(() => {
+    rmSync(root, { recursive: true, force: true })
+  })
+
+  const service = new ExpensesService(root)
+  stubExtractedStatementText(service, '2026-01-03 Card Payment Starbucks-BGC -150.00\n')
+
+  const firstImport = await service.importPdfStatement(
+    'Merchant Wallet',
+    'merchant-a.pdf',
+    Buffer.from('%PDF-1.4 fixture')
+  )
+
+  stubExtractedStatementText(service, '2026-01-04 CARD PAYMENT starbucks bgc -175.00\n')
+  const secondImport = await service.importPdfStatement(
+    'Merchant Wallet',
+    'merchant-b.pdf',
+    Buffer.from('%PDF-1.4 fixture')
+  )
+
+  assert.equal(firstImport.insertedTransactions, 1)
+  assert.equal(secondImport.insertedTransactions, 1)
+
+  const db = openWorkspaceDb(root)
+  t.after(() => {
+    db.close()
+  })
+
+  const merchants = db
+    .prepare(
+      `
+      SELECT id, name, normalized_name
+      FROM exp_merchants
+      ORDER BY id ASC
+      `
+    )
+    .all() as Array<{ id: number; name: string; normalized_name: string | null }>
+  const transactions = db
+    .prepare(
+      `
+      SELECT description, merchant_id
+      FROM exp_transactions
+      ORDER BY tx_date ASC, id ASC
+      `
+    )
+    .all() as Array<{ description: string; merchant_id: number | null }>
+
+  assert.equal(merchants.length, 1)
+  assert.equal(merchants[0]?.normalized_name, 'starbucks bgc')
+  assert.deepEqual(
+    transactions.map((row) => row.description),
+    ['Card Payment Starbucks-BGC', 'CARD PAYMENT starbucks bgc']
+  )
+  assert.deepEqual(
+    new Set(transactions.map((row) => row.merchant_id)),
+    new Set([merchants[0]?.id ?? null])
+  )
+})
+
 test('regression: pickCategory ignores account-scoped rules', async (t) => {
   const root = createWorkspace()
   t.after(() => {
