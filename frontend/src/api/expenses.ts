@@ -1,7 +1,10 @@
 import type {
   ApiStatusResponse,
   BackfillFxResponse,
+  ImportBatchDetail,
+  ImportBatchSummary,
   ImportPdfResponse,
+  ImportRowActionResponse,
   OverviewResponse,
   TransactionRecord,
 } from '../types'
@@ -72,6 +75,26 @@ export function importPdfStatement(accountName: string, file: File): Promise<Imp
   return requestJson<ImportPdfResponse>('/api/expenses/import-pdf', {
     method: 'POST',
     body: formData,
+  })
+}
+
+export function getImportBatches(limit = 20): Promise<ImportBatchSummary[]> {
+  return requestJson<ImportBatchSummary[]>(`/api/expenses/import-batches?limit=${limit}`)
+}
+
+export function getImportBatch(batchId: number): Promise<ImportBatchDetail> {
+  return requestJson<ImportBatchDetail>(`/api/expenses/import-batches/${batchId}`)
+}
+
+export function acceptImportRow(rowId: number): Promise<ImportRowActionResponse> {
+  return requestJson<ImportRowActionResponse>(`/api/expenses/import-rows/${rowId}/accept`, {
+    method: 'POST',
+  })
+}
+
+export function rejectImportRow(rowId: number): Promise<ImportRowActionResponse> {
+  return requestJson<ImportRowActionResponse>(`/api/expenses/import-rows/${rowId}/reject`, {
+    method: 'POST',
   })
 }
 

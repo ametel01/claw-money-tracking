@@ -99,7 +99,7 @@ Failure modes:
 - If schema changes are not backward-compatible, existing local databases will fail on startup.
 - If `transaction_id` is added without nullable semantics, old rows will break inserts.
 
-### Step 1.2: Add import review API endpoints
+### Step 1.2: Add import review API endpoints **COMPLETED**
 
 Files:
 

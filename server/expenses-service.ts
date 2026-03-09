@@ -33,6 +33,56 @@ interface OverviewRow {
   tx_count: number | null
 }
 
+export interface ImportStatusCounts {
+  parsed: number
+  accepted: number
+  rejected: number
+  duplicate: number
+  needs_review: number
+}
+
+export interface ImportBatchSummary {
+  id: number
+  sourceType: string
+  sourceFilename: string | null
+  accountId: number | null
+  accountName: string | null
+  status: string
+  totalRows: number
+  insertedRows: number
+  parseNotes: string | null
+  createdAt: string
+  counts: ImportStatusCounts
+}
+
+export interface ImportRowRecord {
+  id: number
+  batchId: number
+  rowNo: number
+  rawText: string
+  parsedTxDate: string | null
+  postedDate: string | null
+  parsedDescription: string | null
+  merchantCandidate: string | null
+  referenceText: string | null
+  parsedAmount: number | null
+  confidence: number
+  parseNotes: string | null
+  status: string
+  error: string | null
+  transactionId: number | null
+  createdAt: string
+}
+
+export interface ImportBatchDetail extends ImportBatchSummary {
+  rows: ImportRowRecord[]
+}
+
+export interface ImportRowActionResult {
+  row: ImportRowRecord
+  batch: ImportBatchDetail
+}
+
 interface TransactionRow {
   id: number
   tx_date: string
@@ -65,6 +115,43 @@ interface BpiWorkingRow {
 
 interface PdfParseResult {
   text?: string
+}
+
+interface ImportBatchSummaryRow {
+  id: number
+  source_type: string
+  source_filename: string | null
+  account_id: number | null
+  account_name: string | null
+  status: string
+  total_rows: number
+  inserted_rows: number
+  parse_notes: string | null
+  created_at: string
+  parsed_count: number | null
+  accepted_count: number | null
+  rejected_count: number | null
+  duplicate_count: number | null
+  needs_review_count: number | null
+}
+
+interface ImportRowDbRecord {
+  id: number
+  batch_id: number
+  row_no: number
+  raw_text: string
+  parsed_tx_date: string | null
+  posted_date: string | null
+  parsed_description: string | null
+  merchant_candidate: string | null
+  reference_text: string | null
+  parsed_amount: number | null
+  confidence: number
+  parse_notes: string | null
+  status: string
+  error: string | null
+  transaction_id: number | null
+  created_at: string
 }
 
 type PdfParseFn = (buffer: Buffer) => Promise<PdfParseResult>
@@ -172,6 +259,161 @@ export class ExpensesService {
           )
           .all(limit) as FxRateRow[]
     )
+  }
+
+  listImportBatches(limit = 20): ImportBatchSummary[] {
+    this.ensureSchema()
+
+    return this.withDatabase((db) => this.listImportBatchesWithDb(db, limit))
+  }
+
+  getImportBatch(batchId: number): ImportBatchDetail {
+    this.ensureSchema()
+
+    return this.withDatabase((db) => this.getImportBatchWithDb(db, batchId))
+  }
+
+  async acceptImportRow(rowId: number): Promise<ImportRowActionResult> {
+    this.ensureSchema()
+
+    return this.withDatabase(async (db) => {
+      const row = this.getImportRowWithContext(db, rowId)
+      if (!row) {
+        throw new Error(`import row ${rowId} not found`)
+      }
+
+      if (row.transaction_id != null) {
+        this.refreshImportBatchMetrics(db, row.batch_id)
+        return {
+          row: this.getImportRowOrThrow(db, rowId),
+          batch: this.getImportBatchWithDb(db, row.batch_id),
+        }
+      }
+
+      if (!row.account_id) {
+        throw new Error(`import row ${rowId} is missing an account`)
+      }
+      if (!row.parsed_tx_date || !row.parsed_description || row.parsed_amount == null) {
+        throw new Error(
+          `import row ${rowId} cannot be accepted without date, description, and amount`
+        )
+      }
+
+      const account = db
+        .prepare('SELECT currency FROM exp_accounts WHERE id = ?')
+        .get(row.account_id) as { currency: string | null } | undefined
+      const accountCurrency = (account?.currency || 'PHP').toUpperCase()
+      const fxRate = await this.getFxRate(
+        db,
+        accountCurrency,
+        'PHP',
+        row.posted_date || row.parsed_tx_date
+      )
+
+      const runAccept = db.transaction(() => {
+        const categoryId = this.pickCategory(
+          db,
+          row.parsed_description || '',
+          Number(row.parsed_amount)
+        )
+        const amountOriginal = Number(row.parsed_amount)
+        const amountHome = amountOriginal * fxRate
+        const parsedEntry: ParsedExpenseTransaction = {
+          tx_date: row.parsed_tx_date || '',
+          description: row.parsed_description || '',
+          amount: amountOriginal,
+          confidence: Number(row.confidence || 0),
+        }
+        const sourceHash = this.buildManualAcceptSourceHash(parsedEntry, row.raw_text, row.id)
+        const insertResult = db
+          .prepare(
+            `
+            INSERT INTO exp_transactions(
+              account_id,
+              tx_date,
+              posted_date,
+              description,
+              amount,
+              currency,
+              amount_original,
+              amount_home,
+              fx_rate_used,
+              fx_date,
+              category_id,
+              import_batch_id,
+              source_hash
+            )
+            VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `
+          )
+          .run(
+            row.account_id,
+            row.parsed_tx_date,
+            row.posted_date || row.parsed_tx_date,
+            row.parsed_description,
+            amountOriginal,
+            accountCurrency,
+            amountOriginal,
+            amountHome,
+            fxRate,
+            row.parsed_tx_date,
+            categoryId,
+            row.batch_id,
+            sourceHash
+          )
+
+        db.prepare(
+          `
+          UPDATE exp_import_rows_raw
+          SET status = 'accepted', transaction_id = ?, error = NULL
+          WHERE id = ?
+          `
+        ).run(Number(insertResult.lastInsertRowid), row.id)
+
+        this.refreshImportBatchMetrics(db, row.batch_id)
+      })
+
+      runAccept()
+
+      return {
+        row: this.getImportRowOrThrow(db, rowId),
+        batch: this.getImportBatchWithDb(db, row.batch_id),
+      }
+    })
+  }
+
+  rejectImportRow(rowId: number): ImportRowActionResult {
+    this.ensureSchema()
+
+    return this.withDatabase((db) => {
+      const row = this.getImportRowWithContext(db, rowId)
+      if (!row) {
+        throw new Error(`import row ${rowId} not found`)
+      }
+
+      const runReject = db.transaction(() => {
+        if (row.transaction_id != null) {
+          db.prepare('DELETE FROM exp_transactions WHERE id = ?').run(row.transaction_id)
+        }
+
+        db.prepare(
+          `
+          UPDATE exp_import_rows_raw
+          SET status = 'rejected', transaction_id = NULL
+          WHERE id = ?
+          `
+        ).run(row.id)
+
+        this.refreshImportBatchMetrics(db, row.batch_id)
+      })
+
+      runReject()
+
+      return {
+        row: this.getImportRowOrThrow(db, rowId),
+        batch: this.getImportBatchWithDb(db, row.batch_id),
+      }
+    })
   }
 
   async upsertFxRate(
@@ -413,13 +655,7 @@ export class ExpensesService {
         )
       }
 
-      db.prepare(
-        `
-        UPDATE exp_import_batches
-        SET total_rows = ?, inserted_rows = ?, status = ?
-        WHERE id = ?
-        `
-      ).run(parsedCount, insertedCount, 'done', batchId)
+      this.refreshImportBatchMetrics(db, batchId)
 
       return {
         ok: true,
@@ -1218,6 +1454,256 @@ export class ExpensesService {
     return [...notes]
   }
 
+  private listImportBatchesWithDb(db: Database.Database, limit: number): ImportBatchSummary[] {
+    const rows = db
+      .prepare(
+        `
+        SELECT
+          b.id,
+          b.source_type,
+          b.source_filename,
+          b.account_id,
+          a.name AS account_name,
+          b.status,
+          b.total_rows,
+          b.inserted_rows,
+          b.parse_notes,
+          b.created_at,
+          COALESCE(SUM(CASE WHEN r.status = 'parsed' THEN 1 ELSE 0 END), 0) AS parsed_count,
+          COALESCE(SUM(CASE WHEN r.status = 'accepted' THEN 1 ELSE 0 END), 0) AS accepted_count,
+          COALESCE(SUM(CASE WHEN r.status = 'rejected' THEN 1 ELSE 0 END), 0) AS rejected_count,
+          COALESCE(SUM(CASE WHEN r.status = 'duplicate' THEN 1 ELSE 0 END), 0) AS duplicate_count,
+          COALESCE(SUM(CASE WHEN r.status = 'needs_review' THEN 1 ELSE 0 END), 0) AS needs_review_count
+        FROM exp_import_batches AS b
+        LEFT JOIN exp_accounts AS a ON a.id = b.account_id
+        LEFT JOIN exp_import_rows_raw AS r ON r.batch_id = b.id
+        GROUP BY b.id, b.source_type, b.source_filename, b.account_id, a.name, b.status, b.total_rows, b.inserted_rows, b.parse_notes, b.created_at
+        ORDER BY b.id DESC
+        LIMIT ?
+        `
+      )
+      .all(limit) as ImportBatchSummaryRow[]
+
+    return rows.map((row) => this.mapImportBatchSummary(row))
+  }
+
+  private getImportBatchWithDb(db: Database.Database, batchId: number): ImportBatchDetail {
+    const summaryRow = db
+      .prepare(
+        `
+        SELECT
+          b.id,
+          b.source_type,
+          b.source_filename,
+          b.account_id,
+          a.name AS account_name,
+          b.status,
+          b.total_rows,
+          b.inserted_rows,
+          b.parse_notes,
+          b.created_at,
+          COALESCE(SUM(CASE WHEN r.status = 'parsed' THEN 1 ELSE 0 END), 0) AS parsed_count,
+          COALESCE(SUM(CASE WHEN r.status = 'accepted' THEN 1 ELSE 0 END), 0) AS accepted_count,
+          COALESCE(SUM(CASE WHEN r.status = 'rejected' THEN 1 ELSE 0 END), 0) AS rejected_count,
+          COALESCE(SUM(CASE WHEN r.status = 'duplicate' THEN 1 ELSE 0 END), 0) AS duplicate_count,
+          COALESCE(SUM(CASE WHEN r.status = 'needs_review' THEN 1 ELSE 0 END), 0) AS needs_review_count
+        FROM exp_import_batches AS b
+        LEFT JOIN exp_accounts AS a ON a.id = b.account_id
+        LEFT JOIN exp_import_rows_raw AS r ON r.batch_id = b.id
+        WHERE b.id = ?
+        GROUP BY b.id, b.source_type, b.source_filename, b.account_id, a.name, b.status, b.total_rows, b.inserted_rows, b.parse_notes, b.created_at
+        LIMIT 1
+        `
+      )
+      .get(batchId) as ImportBatchSummaryRow | undefined
+
+    if (!summaryRow) {
+      throw new Error(`import batch ${batchId} not found`)
+    }
+
+    const rows = db
+      .prepare(
+        `
+        SELECT
+          id,
+          batch_id,
+          row_no,
+          raw_text,
+          parsed_tx_date,
+          posted_date,
+          parsed_description,
+          merchant_candidate,
+          reference_text,
+          parsed_amount,
+          confidence,
+          parse_notes,
+          status,
+          error,
+          transaction_id,
+          created_at
+        FROM exp_import_rows_raw
+        WHERE batch_id = ?
+        ORDER BY row_no ASC, id ASC
+        `
+      )
+      .all(batchId) as ImportRowDbRecord[]
+
+    return {
+      ...this.mapImportBatchSummary(summaryRow),
+      rows: rows.map((row) => this.mapImportRowRecord(row)),
+    }
+  }
+
+  private mapImportBatchSummary(row: ImportBatchSummaryRow): ImportBatchSummary {
+    return {
+      id: row.id,
+      sourceType: row.source_type,
+      sourceFilename: row.source_filename,
+      accountId: row.account_id,
+      accountName: row.account_name,
+      status: row.status,
+      totalRows: Number(row.total_rows || 0),
+      insertedRows: Number(row.inserted_rows || 0),
+      parseNotes: row.parse_notes,
+      createdAt: row.created_at,
+      counts: {
+        parsed: Number(row.parsed_count || 0),
+        accepted: Number(row.accepted_count || 0),
+        rejected: Number(row.rejected_count || 0),
+        duplicate: Number(row.duplicate_count || 0),
+        needs_review: Number(row.needs_review_count || 0),
+      },
+    }
+  }
+
+  private mapImportRowRecord(row: ImportRowDbRecord): ImportRowRecord {
+    return {
+      id: row.id,
+      batchId: row.batch_id,
+      rowNo: row.row_no,
+      rawText: row.raw_text,
+      parsedTxDate: row.parsed_tx_date,
+      postedDate: row.posted_date,
+      parsedDescription: row.parsed_description,
+      merchantCandidate: row.merchant_candidate,
+      referenceText: row.reference_text,
+      parsedAmount: row.parsed_amount,
+      confidence: Number(row.confidence || 0),
+      parseNotes: row.parse_notes,
+      status: row.status,
+      error: row.error,
+      transactionId: row.transaction_id,
+      createdAt: row.created_at,
+    }
+  }
+
+  private refreshImportBatchMetrics(db: Database.Database, batchId: number): void {
+    const counts = db
+      .prepare(
+        `
+        SELECT
+          COUNT(*) AS total_rows,
+          COALESCE(SUM(CASE WHEN status = 'accepted' THEN 1 ELSE 0 END), 0) AS accepted_rows,
+          COALESCE(SUM(CASE WHEN status IN ('needs_review', 'duplicate') THEN 1 ELSE 0 END), 0) AS open_review_rows
+        FROM exp_import_rows_raw
+        WHERE batch_id = ?
+        `
+      )
+      .get(batchId) as
+      | {
+          total_rows: number | null
+          accepted_rows: number | null
+          open_review_rows: number | null
+        }
+      | undefined
+
+    const openReviewRows = Number(counts?.open_review_rows || 0)
+    const nextStatus = openReviewRows > 0 ? 'reviewed' : 'done'
+
+    db.prepare(
+      `
+      UPDATE exp_import_batches
+      SET total_rows = ?, inserted_rows = ?, status = ?
+      WHERE id = ?
+      `
+    ).run(Number(counts?.total_rows || 0), Number(counts?.accepted_rows || 0), nextStatus, batchId)
+  }
+
+  private getImportRowWithContext(
+    db: Database.Database,
+    rowId: number
+  ):
+    | (ImportRowDbRecord & {
+        account_id: number | null
+      })
+    | null {
+    const row = db
+      .prepare(
+        `
+        SELECT
+          r.id,
+          r.batch_id,
+          r.row_no,
+          r.raw_text,
+          r.parsed_tx_date,
+          r.posted_date,
+          r.parsed_description,
+          r.merchant_candidate,
+          r.reference_text,
+          r.parsed_amount,
+          r.confidence,
+          r.parse_notes,
+          r.status,
+          r.error,
+          r.transaction_id,
+          r.created_at,
+          b.account_id
+        FROM exp_import_rows_raw AS r
+        INNER JOIN exp_import_batches AS b ON b.id = r.batch_id
+        WHERE r.id = ?
+        LIMIT 1
+        `
+      )
+      .get(rowId) as (ImportRowDbRecord & { account_id: number | null }) | undefined
+
+    return row ?? null
+  }
+
+  private getImportRowOrThrow(db: Database.Database, rowId: number): ImportRowRecord {
+    const row = db
+      .prepare(
+        `
+        SELECT
+          id,
+          batch_id,
+          row_no,
+          raw_text,
+          parsed_tx_date,
+          posted_date,
+          parsed_description,
+          merchant_candidate,
+          reference_text,
+          parsed_amount,
+          confidence,
+          parse_notes,
+          status,
+          error,
+          transaction_id,
+          created_at
+        FROM exp_import_rows_raw
+        WHERE id = ?
+        LIMIT 1
+        `
+      )
+      .get(rowId) as ImportRowDbRecord | undefined
+
+    if (!row) {
+      throw new Error(`import row ${rowId} not found`)
+    }
+
+    return this.mapImportRowRecord(row)
+  }
+
   private normalizeTransactionDate(rawDate: string): string {
     if (/^\d{4}-\d{2}-\d{2}$/.test(rawDate)) {
       return rawDate
@@ -1359,6 +1845,16 @@ export class ExpensesService {
   private buildSourceHash(parsedEntry: ParsedExpenseTransaction, rawLine: string): string {
     const normalizedLine = rawLine.trim().toLowerCase().replace(/\s+/g, ' ')
     const source = `${parsedEntry.tx_date}|${parsedEntry.description.trim().toLowerCase()}|${parsedEntry.amount.toFixed(2)}|${normalizedLine}`
+    return createHash('sha256').update(source).digest('hex')
+  }
+
+  private buildManualAcceptSourceHash(
+    parsedEntry: ParsedExpenseTransaction,
+    rawLine: string,
+    rowId: number
+  ): string {
+    const normalizedLine = rawLine.trim().toLowerCase().replace(/\s+/g, ' ')
+    const source = `${parsedEntry.tx_date}|${parsedEntry.description.trim().toLowerCase()}|${parsedEntry.amount.toFixed(2)}|${normalizedLine}|manual-accept|${rowId}`
     return createHash('sha256').update(source).digest('hex')
   }
 

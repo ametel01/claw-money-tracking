@@ -40,6 +40,17 @@ function openWorkspaceDb(root: string): Database.Database {
   return db
 }
 
+function stubParsedImportRows(
+  service: ExpensesService,
+  rows: Array<Record<string, unknown>>
+): void {
+  ;(
+    service as {
+      parsePdfImportRows: (lines: string[]) => Array<Record<string, unknown>>
+    }
+  ).parsePdfImportRows = (_lines) => rows
+}
+
 for (const caseName of [
   'generic_numeric',
   'revolut',
@@ -222,11 +233,7 @@ test('importPdfStatement marks low-confidence and incomplete rows as needs_revie
 
   const service = new ExpensesService(root)
   stubExtractedStatementText(service, 'ignored by stubbed parsePdfImportRows')
-  ;(
-    service as {
-      parsePdfImportRows: (lines: string[]) => Array<Record<string, unknown>>
-    }
-  ).parsePdfImportRows = (_lines) => [
+  stubParsedImportRows(service, [
     {
       txDate: '2026-01-03',
       postedDate: '2026-01-04',
@@ -249,7 +256,7 @@ test('importPdfStatement marks low-confidence and incomplete rows as needs_revie
       referenceText: 'Missing date row',
       parseNotes: null,
     },
-  ]
+  ])
 
   const result = await service.importPdfStatement(
     'Review Account',
@@ -292,6 +299,92 @@ test('importPdfStatement marks low-confidence and incomplete rows as needs_revie
   assert.match(reviewRows[0]?.parse_notes || '', /fallback parser match/)
   assert.match(reviewRows[1]?.parse_notes || '', /missing transaction date/)
   assert.ok(reviewRows.every((row) => row.transaction_id == null))
+})
+
+test('import review service lists batches and supports accept/reject transitions', async (t) => {
+  const root = createWorkspace()
+  t.after(() => {
+    rmSync(root, { recursive: true, force: true })
+  })
+
+  const service = new ExpensesService(root)
+  stubExtractedStatementText(service, 'ignored by stubbed parsePdfImportRows')
+  stubParsedImportRows(service, [
+    {
+      txDate: '2026-02-10',
+      postedDate: '2026-02-11',
+      description: 'Manual review coffee',
+      amount: -275,
+      confidence: 0.42,
+      rawText: 'review-coffee',
+      merchantCandidate: 'Manual review coffee',
+      referenceText: 'Manual review coffee',
+      parseNotes: 'fallback parser match',
+    },
+  ])
+
+  const importResult = await service.importPdfStatement(
+    'Review Wallet',
+    'review-wallet.pdf',
+    Buffer.from('%PDF-1.4 fixture')
+  )
+
+  const db = openWorkspaceDb(root)
+  t.after(() => {
+    db.close()
+  })
+
+  const importedRow = db
+    .prepare(
+      `
+      SELECT id
+      FROM exp_import_rows_raw
+      WHERE batch_id = ?
+      LIMIT 1
+      `
+    )
+    .get(importResult.batchId) as { id: number }
+
+  const listedBatch = service.listImportBatches().find((batch) => batch.id === importResult.batchId)
+  assert.ok(listedBatch)
+  assert.deepEqual(listedBatch?.counts, {
+    parsed: 0,
+    accepted: 0,
+    rejected: 0,
+    duplicate: 0,
+    needs_review: 1,
+  })
+
+  const accepted = await service.acceptImportRow(importedRow.id)
+  assert.equal(accepted.row.status, 'accepted')
+  assert.ok(accepted.row.transactionId != null)
+  assert.deepEqual(accepted.batch.counts, {
+    parsed: 0,
+    accepted: 1,
+    rejected: 0,
+    duplicate: 0,
+    needs_review: 0,
+  })
+
+  const rejected = service.rejectImportRow(importedRow.id)
+  assert.equal(rejected.row.status, 'rejected')
+  assert.equal(rejected.row.transactionId, null)
+  assert.deepEqual(rejected.batch.counts, {
+    parsed: 0,
+    accepted: 0,
+    rejected: 1,
+    duplicate: 0,
+    needs_review: 0,
+  })
+
+  const txCount = Number(
+    (
+      db.prepare('SELECT COUNT(*) AS count FROM exp_transactions').get() as {
+        count: number
+      }
+    ).count
+  )
+  assert.equal(txCount, 0)
 })
 
 test('regression: pickCategory ignores account-scoped rules', async (t) => {

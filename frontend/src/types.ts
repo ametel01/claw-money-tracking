@@ -27,10 +27,60 @@ export interface ApiStatusResponse {
   error?: string
 }
 
+export interface ImportStatusCounts {
+  parsed: number
+  accepted: number
+  rejected: number
+  duplicate: number
+  needs_review: number
+}
+
 export interface ImportPdfResponse extends ApiStatusResponse {
   batchId?: number
   parsedRows?: number
   insertedTransactions?: number
+}
+
+export interface ImportBatchSummary {
+  id: number
+  sourceType: string
+  sourceFilename: string | null
+  accountId: number | null
+  accountName: string | null
+  status: string
+  totalRows: number
+  insertedRows: number
+  parseNotes: string | null
+  createdAt: string
+  counts: ImportStatusCounts
+}
+
+export interface ImportRowRecord {
+  id: number
+  batchId: number
+  rowNo: number
+  rawText: string
+  parsedTxDate: string | null
+  postedDate: string | null
+  parsedDescription: string | null
+  merchantCandidate: string | null
+  referenceText: string | null
+  parsedAmount: number | null
+  confidence: number
+  parseNotes: string | null
+  status: string
+  error: string | null
+  transactionId: number | null
+  createdAt: string
+}
+
+export interface ImportBatchDetail extends ImportBatchSummary {
+  rows: ImportRowRecord[]
+}
+
+export interface ImportRowActionResponse {
+  row: ImportRowRecord
+  batch: ImportBatchDetail
 }
 
 export interface BackfillFxResponse extends ApiStatusResponse {
