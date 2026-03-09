@@ -7,8 +7,8 @@ import { LineChart } from '@/components/LineChart'
 import { MonthTabs } from '@/components/MonthTabs'
 import { TransactionList } from '@/components/TransactionList'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Separator } from '@/components/ui/separator'
-import { buildDashboardAnalytics } from '@/lib/analytics'
+import { buildDashboardAnalytics, buildSpendingPaceChart } from '@/lib/analytics'
+import { monthLabel } from '@/lib/format'
 import type {
   CurrencyViewMode,
   DashboardAnalytics,
@@ -29,7 +29,6 @@ interface DashboardState {
 const EMPTY_ANALYTICS: DashboardAnalytics = {
   months: [],
   pieSegments: [],
-  lineChart: { weeks: [], labels: [], series: [], maxY: 1 },
 }
 
 export function App() {
@@ -81,6 +80,7 @@ export function App() {
 
   const { overview, transactions, analytics, activeMonth, viewMode, loadStatus } = state
   const loading = loadStatus.tone === 'loading'
+  const lineChartModel = buildSpendingPaceChart(transactions, activeMonth)
 
   return (
     <div className="w-full max-w-[1320px] mx-auto px-4 py-6 pb-16">
@@ -162,12 +162,20 @@ export function App() {
           <Card>
             <CardHeader>
               <CardDescription className="text-[0.6rem] font-bold uppercase tracking-[0.16em]">
-                Trend
+                Spending Pace
               </CardDescription>
-              <CardTitle>Weekly category spend</CardTitle>
+              <CardTitle>Cumulative spend by day</CardTitle>
+              <CardDescription>
+                Track how quickly expenses stack up in the selected month versus the prior month.
+              </CardDescription>
             </CardHeader>
-            <CardContent>
-              <LineChart model={analytics.lineChart} />
+            <CardContent className="flex flex-col gap-4">
+              <MonthTabs
+                months={analytics.months}
+                activeMonth={activeMonth}
+                onMonthChange={(month) => setState((prev) => ({ ...prev, activeMonth: month }))}
+              />
+              <LineChart model={lineChartModel} />
             </CardContent>
           </Card>
         </section>
@@ -199,14 +207,13 @@ export function App() {
                 Ledger
               </CardDescription>
               <CardTitle>Recent transactions</CardTitle>
+              {activeMonth && (
+                <CardDescription>
+                  Showing transactions for {monthLabel(activeMonth)}.
+                </CardDescription>
+              )}
             </CardHeader>
             <CardContent className="flex flex-col gap-3">
-              <MonthTabs
-                months={analytics.months}
-                activeMonth={activeMonth}
-                onMonthChange={(month) => setState((prev) => ({ ...prev, activeMonth: month }))}
-              />
-              {analytics.months.length > 0 && <Separator />}
               <TransactionList
                 transactions={transactions}
                 activeMonth={activeMonth}

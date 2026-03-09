@@ -50,22 +50,44 @@ export interface PieSegment {
   color: string
 }
 
-export interface LineSeries {
+export interface SpendingPacePoint {
+  day: number
+  label: string
+  current: number
+  previous: number | null
+}
+
+export interface SpendingDayBreakdown {
+  id: number
+  description: string
   category: string
-  color: string
+  amount: number
+}
+
+export interface SpendingDayHighlight {
+  day: number
+  label: string
   total: number
-  values: number[]
+  transactions: SpendingDayBreakdown[]
 }
 
 export interface LineChartModel {
-  weeks: string[]
-  labels: string[]
-  series: LineSeries[]
+  monthKey: string | null
+  monthLabel: string
+  comparisonMonthLabel: string | null
+  points: SpendingPacePoint[]
   maxY: number
+  total: number
+  comparisonTotal: number | null
+  comparisonToDate: number | null
+  projectedTotal: number | null
+  daysElapsed: number
+  daysInMonth: number
+  isCurrentMonth: boolean
+  largestDay: SpendingDayHighlight | null
 }
 
 export interface DashboardAnalytics {
   months: MonthSummary[]
   pieSegments: PieSegment[]
-  lineChart: LineChartModel
 }

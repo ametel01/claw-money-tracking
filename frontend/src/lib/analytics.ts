@@ -1,20 +1,11 @@
 import type {
   DashboardAnalytics,
   LineChartModel,
-  LineSeries,
   MonthSummary,
   PieSegment,
   TransactionRecord,
 } from '../types'
-import {
-  getCategoryKind,
-  getCategoryName,
-  getHomeAmount,
-  monthKey,
-  monthLabel,
-  weekLabel,
-  weekStart,
-} from './format'
+import { getCategoryKind, getCategoryName, getHomeAmount, monthKey, monthLabel } from './format'
 
 const PIE_COLORS = [
   '#c8f03c',
@@ -34,12 +25,10 @@ export function buildDashboardAnalytics(rows: TransactionRecord[]): DashboardAna
   const months = buildMonths(rows)
   const categoryColors = buildCategoryColors(rows)
   const pieSegments = buildPieSegments(rows, categoryColors)
-  const lineChart = buildLineChart(rows, categoryColors)
 
   return {
     months,
     pieSegments,
-    lineChart,
   }
 }
 
@@ -113,59 +102,206 @@ function buildPieSegments(
   }))
 }
 
-function buildLineChart(
+export function buildSpendingPaceChart(
   rows: TransactionRecord[],
-  categoryColors: Map<string, string>
+  selectedMonth: string | null
 ): LineChartModel {
-  const weeklyKeys = new Set<string>()
-  const categoryWeeklyTotals = new Map<string, Map<string, number>>()
+  const resolvedMonth = selectedMonth ?? buildMonths(rows)[0]?.key ?? null
+  if (!resolvedMonth) {
+    return emptyLineChartModel()
+  }
+
+  const daysInMonth = getDaysInMonth(resolvedMonth)
+  if (!daysInMonth) {
+    return emptyLineChartModel()
+  }
+
+  const today = new Date()
+  const isCurrentMonth = resolvedMonth === toMonthKey(today)
+  const daysElapsed = isCurrentMonth ? Math.min(today.getDate(), daysInMonth) : daysInMonth
+  const currentDailyTotals = new Array<number>(daysInMonth).fill(0)
+  const currentDayTransactions = new Map<number, TransactionRecord[]>()
+
+  const comparisonMonthKey = getPreviousMonthKey(resolvedMonth)
+  const comparisonDays = comparisonMonthKey ? getDaysInMonth(comparisonMonthKey) : 0
+  const comparisonDailyTotals = new Array<number>(comparisonDays).fill(0)
 
   for (const row of rows) {
     if (!isExpense(row)) {
       continue
     }
 
-    const category = getCategoryName(row)
-    const weekKey = weekStart(row.tx_date)
-    if (!weekKey) {
+    const rowMonth = monthKey(row.tx_date)
+    const day = getDayOfMonth(row.tx_date)
+    if (!day) {
       continue
     }
 
-    weeklyKeys.add(weekKey)
+    const amount = Math.abs(getHomeAmount(row))
 
-    let categoryMap = categoryWeeklyTotals.get(category)
-    if (!categoryMap) {
-      categoryMap = new Map<string, number>()
-      categoryWeeklyTotals.set(category, categoryMap)
+    if (rowMonth === resolvedMonth && day <= daysInMonth) {
+      const index = day - 1
+      currentDailyTotals[index] = (currentDailyTotals[index] ?? 0) + amount
+      currentDayTransactions.set(day, [...(currentDayTransactions.get(day) ?? []), row])
+      continue
     }
 
-    categoryMap.set(weekKey, (categoryMap.get(weekKey) ?? 0) + Math.abs(getHomeAmount(row)))
+    if (comparisonMonthKey && rowMonth === comparisonMonthKey && day <= comparisonDays) {
+      const index = day - 1
+      comparisonDailyTotals[index] = (comparisonDailyTotals[index] ?? 0) + amount
+    }
   }
 
-  const weeks = [...weeklyKeys].sort((left, right) => left.localeCompare(right))
-  const series: LineSeries[] = [...categoryWeeklyTotals.entries()]
-    .map(([category, valuesByWeek]) => {
-      const values = weeks.map((week) => valuesByWeek.get(week) ?? 0)
-      const total = values.reduce((sum, value) => sum + value, 0)
+  const currentCumulative = toCumulativeTotals(currentDailyTotals)
+  const comparisonCumulative = toCumulativeTotals(comparisonDailyTotals)
+  const total =
+    currentCumulative.length > 0 ? (currentCumulative[currentCumulative.length - 1] ?? 0) : 0
+  const comparisonTotal =
+    comparisonCumulative.length > 0
+      ? (comparisonCumulative[comparisonCumulative.length - 1] ?? 0)
+      : null
+  const comparisonToDate =
+    comparisonCumulative.length > 0
+      ? (comparisonCumulative[Math.min(daysElapsed, comparisonCumulative.length) - 1] ?? 0)
+      : null
 
-      return {
-        category,
-        color: categoryColors.get(category) ?? DEFAULT_COLOR,
-        total,
-        values,
-      }
-    })
-    .sort((left, right) => right.total - left.total)
-    .slice(0, 10)
+  const projectedTotal =
+    isCurrentMonth && daysElapsed > 0 && daysElapsed < daysInMonth
+      ? ((currentCumulative[daysElapsed - 1] ?? 0) / daysElapsed) * daysInMonth
+      : null
+
+  const largestDayEntry = currentDailyTotals.reduce(
+    (best, totalForDay, index) =>
+      totalForDay > best.total ? { day: index + 1, total: totalForDay } : best,
+    { day: 0, total: 0 }
+  )
 
   return {
-    weeks,
-    labels: weeks.map((week) => weekLabel(week)),
-    series,
-    maxY: Math.max(1, ...series.flatMap((entry) => entry.values)),
+    monthKey: resolvedMonth,
+    monthLabel: monthLabel(resolvedMonth),
+    comparisonMonthLabel: comparisonMonthKey ? monthLabel(comparisonMonthKey) : null,
+    points: currentCumulative.map((current, index) => ({
+      day: index + 1,
+      label: String(index + 1),
+      current,
+      previous:
+        comparisonCumulative.length > 0
+          ? (comparisonCumulative[Math.min(index, comparisonCumulative.length - 1)] ?? 0)
+          : null,
+    })),
+    maxY: Math.max(
+      1,
+      ...currentCumulative,
+      ...comparisonCumulative,
+      projectedTotal ?? 0,
+      largestDayEntry.total
+    ),
+    total,
+    comparisonTotal,
+    comparisonToDate,
+    projectedTotal,
+    daysElapsed,
+    daysInMonth,
+    isCurrentMonth,
+    largestDay:
+      largestDayEntry.total > 0
+        ? {
+            day: largestDayEntry.day,
+            label: formatDayLabel(resolvedMonth, largestDayEntry.day),
+            total: largestDayEntry.total,
+            transactions: [...(currentDayTransactions.get(largestDayEntry.day) ?? [])]
+              .sort((left, right) => Math.abs(getHomeAmount(right)) - Math.abs(getHomeAmount(left)))
+              .slice(0, 3)
+              .map((row) => ({
+                id: row.id,
+                description: row.description || '(no description)',
+                category: getCategoryName(row),
+                amount: Math.abs(getHomeAmount(row)),
+              })),
+          }
+        : null,
   }
 }
 
 function isExpense(row: TransactionRecord): boolean {
   return getCategoryKind(row) === 'expense' && getHomeAmount(row) < 0
+}
+
+function emptyLineChartModel(): LineChartModel {
+  return {
+    monthKey: null,
+    monthLabel: '',
+    comparisonMonthLabel: null,
+    points: [],
+    maxY: 1,
+    total: 0,
+    comparisonTotal: null,
+    comparisonToDate: null,
+    projectedTotal: null,
+    daysElapsed: 0,
+    daysInMonth: 0,
+    isCurrentMonth: false,
+    largestDay: null,
+  }
+}
+
+function getDaysInMonth(monthValue: string): number {
+  const [yearRaw, monthRaw] = monthValue.split('-')
+  const year = Number(yearRaw)
+  const month = Number(monthRaw)
+
+  if (!year || !month) {
+    return 0
+  }
+
+  return new Date(year, month, 0).getDate()
+}
+
+function getPreviousMonthKey(monthValue: string): string | null {
+  const [yearRaw, monthRaw] = monthValue.split('-')
+  const year = Number(yearRaw)
+  const month = Number(monthRaw)
+
+  if (!year || !month) {
+    return null
+  }
+
+  const previous = new Date(year, month - 2, 1)
+  return toMonthKey(previous)
+}
+
+function getDayOfMonth(dateValue: string | null | undefined): number | null {
+  const date = dateValue ? new Date(`${dateValue}T00:00:00`) : null
+  if (!date || Number.isNaN(date.getTime())) {
+    return null
+  }
+
+  return date.getDate()
+}
+
+function toCumulativeTotals(values: number[]): number[] {
+  let runningTotal = 0
+  return values.map((value) => {
+    runningTotal += value
+    return runningTotal
+  })
+}
+
+function formatDayLabel(monthValue: string, day: number): string {
+  const [yearRaw, monthRaw] = monthValue.split('-')
+  const year = Number(yearRaw)
+  const month = Number(monthRaw)
+
+  if (!year || !month || !day) {
+    return monthValue
+  }
+
+  return new Date(year, month - 1, day).toLocaleDateString('en-PH', {
+    month: 'short',
+    day: 'numeric',
+  })
+}
+
+function toMonthKey(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
 }
