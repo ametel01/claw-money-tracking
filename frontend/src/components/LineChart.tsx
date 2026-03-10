@@ -68,7 +68,7 @@ export function LineChart({ model }: LineChartProps) {
 
   return (
     <div className="grid gap-4">
-      <div className="grid gap-2 md:grid-cols-3">
+      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
         <div className="rounded-lg border border-border bg-secondary/60 p-3">
           <p className="text-[0.58rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
             {spentLabel}
@@ -185,111 +185,122 @@ function ChartSvg({ model }: LineChartProps) {
   const projectionLine = getProjectionLine(model);
 
   return (
-    <svg
-      viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
-      preserveAspectRatio="none"
-      className="h-[240px] w-full rounded-sm border border-border bg-[var(--color-surface-muted)]"
-    >
-      <title>{chartTitle}</title>
-
-      {[0, 1, 2, 3, 4].map((tick) => {
-        const value = (model.maxY * tick) / 4;
-        const y = yCoord(value, model.maxY);
-        return (
-          <g key={tick}>
-            <line
-              x1={MARGIN.left}
-              y1={y}
-              x2={WIDTH - MARGIN.right}
-              y2={y}
-              stroke={gridLineColor}
-              strokeWidth="1"
-            />
-            <text x={MARGIN.left - 8} y={y + 4} textAnchor="end" fontSize="10" fill={gridTextColor}>
-              {formatAxisMoney(value)}
-            </text>
-          </g>
-        );
-      })}
-
-      <line
-        x1={MARGIN.left}
-        y1={HEIGHT - MARGIN.bottom}
-        x2={WIDTH - MARGIN.right}
-        y2={HEIGHT - MARGIN.bottom}
-        stroke={gridLineColor}
-        strokeWidth="1"
-      />
-
-      {xTicks.map((point) => (
-        <text
-          key={point.day}
-          x={xCoord(point.day - 1, model.points.length)}
-          y={HEIGHT - 14}
-          textAnchor="middle"
-          fontSize="10"
-          fill={gridTextColor}
+    <div className="grid gap-2">
+      <p className="text-[0.68rem] text-muted-foreground sm:hidden">Swipe to inspect daily pacing.</p>
+      <div className="overflow-x-auto pb-1 [scrollbar-width:thin]">
+        <svg
+          viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
+          preserveAspectRatio="xMidYMid meet"
+          className="h-auto min-w-[720px] w-[720px] rounded-sm border border-border bg-[var(--color-surface-muted)] sm:min-w-0 sm:w-full"
         >
-          {point.label}
-        </text>
-      ))}
+          <title>{chartTitle}</title>
 
-      <polygon
-        points={buildAreaPoints(currentValues, model.maxY, model.points.length)}
-        fill={CURRENT_FILL}
-      />
+          {[0, 1, 2, 3, 4].map((tick) => {
+            const value = (model.maxY * tick) / 4;
+            const y = yCoord(value, model.maxY);
+            return (
+              <g key={tick}>
+                <line
+                  x1={MARGIN.left}
+                  y1={y}
+                  x2={WIDTH - MARGIN.right}
+                  y2={y}
+                  stroke={gridLineColor}
+                  strokeWidth="1"
+                />
+                <text
+                  x={MARGIN.left - 8}
+                  y={y + 4}
+                  textAnchor="end"
+                  fontSize="10"
+                  fill={gridTextColor}
+                >
+                  {formatAxisMoney(value)}
+                </text>
+              </g>
+            );
+          })}
 
-      {model.comparisonMonthLabel ? (
-        <polyline
-          fill="none"
-          stroke={COMPARISON_COLOR}
-          strokeDasharray="5 5"
-          strokeWidth="2"
-          points={buildPolylinePoints(comparisonValues, model.maxY, model.points.length)}
-        />
-      ) : null}
-
-      <polyline
-        fill="none"
-        stroke={CURRENT_COLOR}
-        strokeWidth="3"
-        points={buildPolylinePoints(currentValues, model.maxY, model.points.length)}
-      />
-
-      {projectionLine ? (
-        <line
-          x1={xCoord(projectionLine.startIndex, model.points.length)}
-          y1={yCoord(projectionLine.startValue, model.maxY)}
-          x2={xCoord(projectionLine.endIndex, model.points.length)}
-          y2={yCoord(projectionLine.endValue, model.maxY)}
-          stroke={PROJECTION_COLOR}
-          strokeDasharray="3 5"
-          strokeWidth="2"
-        />
-      ) : null}
-
-      {highlightPoint && model.largestDay ? (
-        <g>
-          <circle
-            cx={xCoord(highlightPoint.day - 1, model.points.length)}
-            cy={yCoord(highlightPoint.current, model.maxY)}
-            r="4"
-            fill={CURRENT_COLOR}
-            stroke="oklch(0.10 0.01 245)"
-            strokeWidth="1.5"
+          <line
+            x1={MARGIN.left}
+            y1={HEIGHT - MARGIN.bottom}
+            x2={WIDTH - MARGIN.right}
+            y2={HEIGHT - MARGIN.bottom}
+            stroke={gridLineColor}
+            strokeWidth="1"
           />
-          <text
-            x={xCoord(highlightPoint.day - 1, model.points.length)}
-            y={yCoord(highlightPoint.current, model.maxY) - 12}
-            textAnchor="middle"
-            fontSize="10"
-            fill={gridTextColor}
-          >
-            {model.largestDay.label}
-          </text>
-        </g>
-      ) : null}
-    </svg>
+
+          {xTicks.map((point) => (
+            <text
+              key={point.day}
+              x={xCoord(point.day - 1, model.points.length)}
+              y={HEIGHT - 14}
+              textAnchor="middle"
+              fontSize="10"
+              fill={gridTextColor}
+            >
+              {point.label}
+            </text>
+          ))}
+
+          <polygon
+            points={buildAreaPoints(currentValues, model.maxY, model.points.length)}
+            fill={CURRENT_FILL}
+          />
+
+          {model.comparisonMonthLabel ? (
+            <polyline
+              fill="none"
+              stroke={COMPARISON_COLOR}
+              strokeDasharray="5 5"
+              strokeWidth="2"
+              points={buildPolylinePoints(comparisonValues, model.maxY, model.points.length)}
+            />
+          ) : null}
+
+          <polyline
+            fill="none"
+            stroke={CURRENT_COLOR}
+            strokeWidth="3"
+            points={buildPolylinePoints(currentValues, model.maxY, model.points.length)}
+          />
+
+          {projectionLine ? (
+            <line
+              x1={xCoord(projectionLine.startIndex, model.points.length)}
+              y1={yCoord(projectionLine.startValue, model.maxY)}
+              x2={xCoord(projectionLine.endIndex, model.points.length)}
+              y2={yCoord(projectionLine.endValue, model.maxY)}
+              stroke={PROJECTION_COLOR}
+              strokeDasharray="3 5"
+              strokeWidth="2"
+            />
+          ) : null}
+
+          {highlightPoint && model.largestDay ? (
+            <g>
+              <circle
+                cx={xCoord(highlightPoint.day - 1, model.points.length)}
+                cy={yCoord(highlightPoint.current, model.maxY)}
+                r="4"
+                fill={CURRENT_COLOR}
+                stroke="oklch(0.10 0.01 245)"
+                strokeWidth="1.5"
+              />
+              <text
+                x={xCoord(highlightPoint.day - 1, model.points.length)}
+                y={yCoord(highlightPoint.current, model.maxY) - 12}
+                textAnchor="middle"
+                fontSize="10"
+                fill={gridTextColor}
+              >
+                {model.largestDay.label}
+              </text>
+            </g>
+          ) : null}
+        </svg>
+      </div>
+    </div>
   );
 }
 
@@ -337,7 +348,7 @@ function LargestDayBreakdown({ largestDay }: { largestDay: SpendingDayHighlight 
 
   return (
     <div className="grid gap-2 rounded-lg border border-border bg-secondary/40 p-3">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-[0.58rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
             Largest day breakdown
@@ -353,10 +364,10 @@ function LargestDayBreakdown({ largestDay }: { largestDay: SpendingDayHighlight 
         {largestDay.transactions.map((transaction) => (
           <div
             key={transaction.id}
-            className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 border-t border-border pt-2 first:border-t-0 first:pt-0"
+            className="grid gap-1.5 border-t border-border pt-2 first:border-t-0 first:pt-0 sm:grid-cols-[minmax(0,1fr)_auto] sm:gap-3"
           >
             <div className="min-w-0">
-              <p className="truncate text-xs font-medium text-foreground">
+              <p className="text-xs font-medium text-foreground sm:truncate">
                 {transaction.description}
               </p>
               <p className="text-[0.68rem] text-muted-foreground">{transaction.category}</p>

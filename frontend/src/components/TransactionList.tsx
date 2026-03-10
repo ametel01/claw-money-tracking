@@ -47,9 +47,9 @@ export function TransactionList({
           key={row.id}
           className="grid gap-3 border-b border-border py-2.5 last:border-b-0"
         >
-          <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-3">
+          <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:gap-3">
             <div className="min-w-0">
-              <p className="truncate text-[0.78rem] font-medium text-foreground">
+              <p className="text-[0.78rem] font-medium text-foreground sm:truncate">
                 {row.description || '(no description)'}
               </p>
               <p className="mt-0.5 text-[0.66rem] leading-relaxed text-muted-foreground">
@@ -61,7 +61,7 @@ export function TransactionList({
                 ].join(' • ')}
               </p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-2 sm:justify-end sm:border-t-0 sm:pt-0">
               <div
                 className={cn(
                   'self-center text-[0.8rem] font-bold tabular-nums whitespace-nowrap',

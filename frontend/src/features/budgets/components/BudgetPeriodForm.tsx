@@ -36,7 +36,7 @@ export function BudgetPeriodForm({ activeMonth, pending, onCreate }: BudgetPerio
           Create a budget period for this month before you add category targets.
         </p>
       </div>
-      <div className="grid gap-1.5 md:grid-cols-[minmax(0,1fr)_120px]">
+      <div className="grid gap-1.5 sm:grid-cols-[minmax(0,1fr)_120px]">
         <Input
           value={budgetName}
           onChange={(event) => setBudgetName(event.target.value)}
@@ -52,7 +52,7 @@ export function BudgetPeriodForm({ activeMonth, pending, onCreate }: BudgetPerio
           required
         />
       </div>
-      <Button type="submit" className="w-full md:w-fit" disabled={pending}>
+      <Button type="submit" className="w-full sm:w-fit" disabled={pending}>
         {pending ? 'Creating…' : `Create ${monthLabel(activeMonth)} budget`}
       </Button>
     </form>

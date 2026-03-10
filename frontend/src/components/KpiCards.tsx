@@ -31,11 +31,11 @@ export function KpiCards({ overview, loading }: KpiCardsProps) {
       ];
 
   return (
-    <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+    <div className="grid grid-flow-col auto-cols-[minmax(11rem,82%)] gap-2 overflow-x-auto pb-1 snap-x snap-mandatory [scrollbar-width:none] sm:grid-flow-row sm:auto-cols-auto sm:grid-cols-2 sm:overflow-visible md:grid-cols-4 [&::-webkit-scrollbar]:hidden">
       {items.map(([label, value], index) => (
         <Card
           key={label}
-          className={`border border-border border-l-3 bg-secondary ${ACCENT_CLASSES[index] ?? ''}`}
+          className={`snap-start border border-border border-l-3 bg-secondary ${ACCENT_CLASSES[index] ?? ''}`}
         >
           <CardContent className="flex flex-col gap-2 p-4">
             <p className="text-[0.58rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground">

@@ -84,7 +84,7 @@ function BudgetTargetListItem({
   return (
     <form
       onSubmit={handleSubmit}
-      className="grid gap-3 rounded-lg border border-border/70 bg-muted/15 p-3 md:grid-cols-[minmax(0,1fr)_160px_auto_auto]"
+      className="grid gap-3 rounded-lg border border-border/70 bg-muted/15 p-3 sm:grid-cols-[minmax(0,1fr)_160px] xl:grid-cols-[minmax(0,1fr)_160px_auto_auto]"
     >
       <div className="grid gap-1">
         <p className="text-xs font-semibold text-foreground">{target.categoryName}</p>
@@ -103,12 +103,13 @@ function BudgetTargetListItem({
         onChange={(event) => setAmount(event.target.value)}
         required
       />
-      <Button type="submit" variant="outline" disabled={pending || deleting}>
+      <Button type="submit" variant="outline" className="w-full xl:w-auto" disabled={pending || deleting}>
         {pending && !deleting ? 'Saving…' : 'Save'}
       </Button>
       <Button
         type="button"
         variant="destructive"
+        className="w-full xl:w-auto"
         disabled={pending || deleting}
         onClick={() => void onDeleteTarget(target.id)}
       >

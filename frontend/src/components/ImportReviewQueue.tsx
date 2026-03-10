@@ -34,7 +34,7 @@ export function ImportReviewQueue({
             key={row.id}
             className="grid gap-3 rounded-lg border border-border/70 bg-muted/20 p-3"
           >
-            <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-start">
               <div>
                 <p className="text-xs font-semibold text-foreground">
                   {row.parsedDescription || row.rawText}
@@ -45,10 +45,11 @@ export function ImportReviewQueue({
                     .join(' • ')}
                 </p>
               </div>
-              <div className="flex gap-2">
+              <div className="grid grid-cols-2 gap-2 sm:flex">
                 <Button
                   type="button"
                   size="sm"
+                  className="w-full"
                   disabled={busy}
                   onClick={() => void onAccept(row.id)}
                 >
@@ -58,6 +59,7 @@ export function ImportReviewQueue({
                   type="button"
                   size="sm"
                   variant="outline"
+                  className="w-full"
                   disabled={busy}
                   onClick={() => void onReject(row.id)}
                 >

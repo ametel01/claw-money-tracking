@@ -88,7 +88,7 @@ export function TransactionCategorizationPanel({
       {categoriesLoading ? (
         <p className="text-xs text-muted-foreground">Loading categories…</p>
       ) : (
-        <div className="grid gap-2 md:grid-cols-3">
+        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
           <Select value={categoryId} onValueChange={setCategoryId}>
             <SelectTrigger className="w-full">
               <SelectValue placeholder="Category" />
@@ -133,11 +133,21 @@ export function TransactionCategorizationPanel({
 
       <Input value={pattern} onChange={(event) => setPattern(event.target.value)} required />
 
-      <div className="flex flex-wrap items-center gap-2">
-        <Button type="submit" disabled={saving || categoriesLoading || categories.length === 0}>
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+        <Button
+          type="submit"
+          className="w-full sm:w-auto"
+          disabled={saving || categoriesLoading || categories.length === 0}
+        >
           {saving ? 'Saving rule…' : 'Create rule'}
         </Button>
-        <Button type="button" variant="outline" onClick={onClose} disabled={saving}>
+        <Button
+          type="button"
+          variant="outline"
+          className="w-full sm:w-auto"
+          onClick={onClose}
+          disabled={saving}
+        >
           Close
         </Button>
       </div>

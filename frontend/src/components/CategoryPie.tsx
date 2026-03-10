@@ -20,7 +20,7 @@ export function CategoryPie({ segments }: CategoryPieProps) {
       : { background: 'conic-gradient(var(--color-secondary) 0 360deg)' };
 
   return (
-    <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
+    <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
       <div
         className="size-32 shrink-0 self-start rounded-full border border-border shadow-[0_0_0_8px_var(--color-card),inset_0_0_0_12px_var(--color-card)]"
         style={pieStyle}
@@ -35,7 +35,7 @@ export function CategoryPie({ segments }: CategoryPieProps) {
           segments.map((segment) => (
             <div
               key={segment.name}
-              className="flex items-center justify-between gap-3 min-w-0 text-xs"
+              className="flex min-w-0 flex-col gap-1 text-xs sm:flex-row sm:items-center sm:justify-between sm:gap-3"
             >
               <span className="flex items-center gap-1.5 min-w-0">
                 <span

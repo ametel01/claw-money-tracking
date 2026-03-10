@@ -43,7 +43,7 @@ export function FxManagementSection({ onFxUpdated }: FxManagementSectionProps) {
             Save dated FX rates for any supported currency pair exposed by the backend.
           </p>
         </div>
-        <div className="grid gap-2 md:grid-cols-[100px_100px_minmax(0,1fr)_180px_auto]">
+        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-[100px_100px_minmax(0,1fr)_180px_auto]">
           <Input
             value={baseCurrency}
             onChange={(event) => setBaseCurrency(event.target.value.toUpperCase())}
@@ -72,7 +72,11 @@ export function FxManagementSection({ onFxUpdated }: FxManagementSectionProps) {
             value={rateDate}
             onChange={(event) => setRateDate(event.target.value)}
           />
-          <Button type="submit" disabled={fxManagement.savingRate}>
+          <Button
+            type="submit"
+            className="w-full sm:col-span-2 xl:col-span-1 xl:w-auto"
+            disabled={fxManagement.savingRate}
+          >
             {fxManagement.savingRate ? 'Saving…' : 'Save rate'}
           </Button>
         </div>
@@ -81,7 +85,7 @@ export function FxManagementSection({ onFxUpdated }: FxManagementSectionProps) {
       <Button
         type="button"
         variant="outline"
-        className="w-full md:w-fit"
+        className="w-full lg:w-fit"
         disabled={fxManagement.backfilling}
         onClick={() => void fxManagement.actions.backfill()}
       >
@@ -93,7 +97,7 @@ export function FxManagementSection({ onFxUpdated }: FxManagementSectionProps) {
       <Separator />
 
       <div className="grid gap-2">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs font-semibold text-foreground">FX history</p>
           <Badge variant="outline">{fxManagement.rates.length} record(s)</Badge>
         </div>

@@ -61,7 +61,7 @@ export function BudgetTargetForm({
           Choose an expense category and set the target amount for the active budget period.
         </p>
       </div>
-      <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_160px_auto]">
+      <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_160px] xl:grid-cols-[minmax(0,1fr)_160px_auto]">
         <Select value={selectedCategoryId} onValueChange={setSelectedCategoryId}>
           <SelectTrigger className="w-full">
             <SelectValue placeholder="Select category" />
@@ -85,7 +85,7 @@ export function BudgetTargetForm({
           onChange={(event) => setTargetAmount(event.target.value)}
           required
         />
-        <Button type="submit" className="w-full md:w-fit" disabled={pending}>
+        <Button type="submit" className="w-full xl:w-fit" disabled={pending}>
           {pending ? 'Saving…' : 'Add target'}
         </Button>
       </div>

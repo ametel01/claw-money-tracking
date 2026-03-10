@@ -24,8 +24,11 @@ export function RecurringPreviewCard({ insights }: RecurringPreviewCardProps) {
       </p>
       <div className="grid gap-1.5">
         {insights.nextCharges.slice(0, 3).map((series) => (
-          <div key={series.id} className="flex items-center justify-between gap-3 text-xs">
-            <span className="truncate text-foreground">
+          <div
+            key={series.id}
+            className="flex flex-col gap-1 text-xs sm:flex-row sm:items-center sm:justify-between sm:gap-3"
+          >
+            <span className="text-foreground sm:truncate">
               {series.merchantName} · {series.cadence} · {series.occurrenceCount} hits
             </span>
             <span className="tabular-nums text-muted-foreground">

@@ -5,6 +5,14 @@ import { KpiCards } from '@/components/KpiCards';
 import { LineChart } from '@/components/LineChart';
 import { MerchantLeaderboardCard } from '@/components/MerchantLeaderboardCard';
 import { MonthTabs } from '@/components/MonthTabs';
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { BudgetSection } from '@/features/budgets/components/BudgetSection';
 import { CategorizationRulesSection } from '@/features/categorization/components/CategorizationRulesSection';
 import { TransactionCategorizationSection } from '@/features/categorization/components/TransactionCategorizationSection';
@@ -15,9 +23,18 @@ import { ImportReviewSection } from '@/features/imports/components/ImportReviewS
 import { ImportWorkflowSection } from '@/features/imports/components/ImportWorkflowSection';
 import { RecurringSection } from '@/features/recurring/components/RecurringSection';
 import { monthLabel } from '@/lib/format';
+import { useState } from 'react';
 import type { UseExpensesDashboardResult } from '../hooks/useExpensesDashboard';
 import { DashboardHeader } from './DashboardHeader';
 import { DashboardSection } from './DashboardSection';
+
+const WORKSPACES = [
+  { value: 'overview', label: 'Overview' },
+  { value: 'imports', label: 'Imports' },
+  { value: 'budget', label: 'Budget' },
+  { value: 'categorization', label: 'Categorization' },
+  { value: 'controls', label: 'Controls' },
+] as const;
 
 export function ExpensesDashboardPage({
   state,
@@ -42,6 +59,8 @@ export function ExpensesDashboardPage({
     viewMode,
     loadStatus,
   } = state;
+  const [workspace, setWorkspace] =
+    useState<(typeof WORKSPACES)[number]['value']>('overview');
   const handleRuleCreated = async () => {
     await Promise.all([
       actions.refreshDashboard(),
@@ -50,11 +69,11 @@ export function ExpensesDashboardPage({
   };
 
   return (
-    <div className="mx-auto w-full max-w-[1320px] px-4 py-6 pb-16">
+    <div className="mx-auto w-full max-w-[1320px] px-3 py-4 pb-16 sm:px-4 sm:py-6">
       <DashboardHeader status={loadStatus} />
 
       <main>
-        <Tabs defaultValue="overview" className="gap-6">
+        <Tabs value={workspace} onValueChange={(value) => setWorkspace(value as typeof workspace)} className="gap-6">
           <div className="flex flex-col gap-3">
             <div className="flex flex-col gap-1">
               <p className="text-[0.6rem] font-bold uppercase tracking-[0.18em] text-muted-foreground">
@@ -65,10 +84,26 @@ export function ExpensesDashboardPage({
                 categorization, and controls into focused workspaces.
               </p>
             </div>
+            <div className="sm:hidden">
+              <Select value={workspace} onValueChange={(value) => setWorkspace(value as typeof workspace)}>
+                <SelectTrigger aria-label="Select dashboard workspace" className="w-full">
+                  <SelectValue placeholder="Choose workspace" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    {WORKSPACES.map((item) => (
+                      <SelectItem key={item.value} value={item.value}>
+                        {item.label}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </div>
             <TabsList
               aria-label="Dashboard sections"
               variant="line"
-              className="h-auto w-full justify-start overflow-x-auto border-b border-border px-0 py-0 sm:w-fit"
+              className="hidden h-auto w-full justify-start overflow-x-auto border-b border-border px-0 py-0 sm:inline-flex sm:w-fit"
             >
               <TabsTrigger value="overview">Overview</TabsTrigger>
               <TabsTrigger value="imports">Imports</TabsTrigger>
@@ -114,7 +149,7 @@ export function ExpensesDashboardPage({
               </DashboardSection>
 
               <DashboardSection
-                spanClassName="col-span-12 md:col-span-4"
+                spanClassName="col-span-12 md:col-span-6 xl:col-span-4"
                 cardClassName="h-full"
                 eyebrow="Cash Flow"
                 title="Monthly cash flow"
@@ -123,7 +158,7 @@ export function ExpensesDashboardPage({
               </DashboardSection>
 
               <DashboardSection
-                spanClassName="col-span-12 md:col-span-4"
+                spanClassName="col-span-12 md:col-span-6 xl:col-span-4"
                 cardClassName="h-full"
                 eyebrow="Merchants"
                 title="Merchant leaderboard"
@@ -132,7 +167,7 @@ export function ExpensesDashboardPage({
               </DashboardSection>
 
               <DashboardSection
-                spanClassName="col-span-12 md:col-span-4"
+                spanClassName="col-span-12 md:col-span-6 xl:col-span-4"
                 cardClassName="h-full"
                 eyebrow="Recurring"
                 title="Recurring charges preview"

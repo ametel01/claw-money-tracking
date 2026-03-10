@@ -30,6 +30,7 @@ export function TransactionCategorizationSection({
         <Button
           type="button"
           size="sm"
+          className="w-full sm:w-auto"
           variant={expandedTransactionId === transaction.id ? 'secondary' : 'outline'}
           onClick={() =>
             setExpandedTransactionId((currentId) =>
