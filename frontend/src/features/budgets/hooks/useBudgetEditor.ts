@@ -18,13 +18,13 @@ export interface BudgetEditorStatus {
 interface UseBudgetEditorOptions {
   activeMonth: string | null;
   period: BudgetPeriodRecord | null;
-  onRefreshDashboard: () => Promise<void>;
+  onBudgetPeriodChanged: (period: BudgetPeriodRecord) => void;
 }
 
 export function useBudgetEditor({
   activeMonth,
   period,
-  onRefreshDashboard,
+  onBudgetPeriodChanged,
 }: UseBudgetEditorOptions) {
   const [categories, setCategories] = useState<CategoryRecord[]>([]);
   const [categoriesLoading, setCategoriesLoading] = useState(true);
@@ -80,12 +80,12 @@ export function useBudgetEditor({
       setStatus({ tone: 'pending', message: `Creating budget period for ${activeMonth}…` });
 
       try {
-        await createBudgetPeriod({
+        const nextPeriod = await createBudgetPeriod({
           month: activeMonth,
           budgetName: input.budgetName.trim() || 'Default Budget',
           currency: input.currency.trim().toUpperCase() || 'PHP',
         });
-        await onRefreshDashboard();
+        onBudgetPeriodChanged(nextPeriod);
         setStatus({ tone: 'success', message: 'Budget period created.' });
       } catch (error) {
         setStatus({ tone: 'error', message: toErrorMessage(error) });
@@ -93,7 +93,7 @@ export function useBudgetEditor({
         setCreatingPeriod(false);
       }
     },
-    [activeMonth, onRefreshDashboard],
+    [activeMonth, onBudgetPeriodChanged],
   );
 
   const saveTarget = useCallback(
@@ -110,12 +110,12 @@ export function useBudgetEditor({
       setStatus({ tone: 'pending', message: 'Saving budget target…' });
 
       try {
-        await upsertBudgetTarget({
+        const nextPeriod = await upsertBudgetTarget({
           periodId: period.id,
           categoryId: input.categoryId,
           targetAmount: input.targetAmount,
         });
-        await onRefreshDashboard();
+        onBudgetPeriodChanged(nextPeriod);
         setStatus({ tone: 'success', message: input.successMessage });
       } catch (error) {
         setStatus({ tone: 'error', message: toErrorMessage(error) });
@@ -123,7 +123,7 @@ export function useBudgetEditor({
         setSavingTarget(false);
       }
     },
-    [onRefreshDashboard, period],
+    [onBudgetPeriodChanged, period],
   );
 
   const addTarget = useCallback(
@@ -152,8 +152,8 @@ export function useBudgetEditor({
       setStatus({ tone: 'pending', message: 'Deleting budget target…' });
 
       try {
-        await deleteBudgetTarget(targetId);
-        await onRefreshDashboard();
+        const nextPeriod = await deleteBudgetTarget(targetId);
+        onBudgetPeriodChanged(nextPeriod);
         setStatus({ tone: 'success', message: 'Budget target deleted.' });
       } catch (error) {
         setStatus({ tone: 'error', message: toErrorMessage(error) });
@@ -161,7 +161,7 @@ export function useBudgetEditor({
         setDeletingTargetId(null);
       }
     },
-    [onRefreshDashboard],
+    [onBudgetPeriodChanged],
   );
 
   return {

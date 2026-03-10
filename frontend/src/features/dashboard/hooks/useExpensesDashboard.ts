@@ -111,6 +111,7 @@ type ExpensesDashboardAction =
   | { type: 'dashboard/load-started'; message: string }
   | { type: 'dashboard/load-succeeded'; payload: ExpensesDashboardStateUpdate }
   | { type: 'dashboard/load-failed'; message: string }
+  | { type: 'dashboard/budget-period-upserted'; period: BudgetPeriodRecord }
   | { type: 'dashboard/month-selected'; month: string }
   | { type: 'dashboard/review-started'; rowId: number }
   | { type: 'dashboard/review-finished' }
@@ -126,6 +127,7 @@ export interface UseExpensesDashboardResult {
     handleMonthChange: (month: string) => Promise<void>;
     handleReviewAccept: (rowId: number) => Promise<void>;
     handleReviewReject: (rowId: number) => Promise<void>;
+    upsertBudgetPeriod: (period: BudgetPeriodRecord) => void;
     setViewMode: (mode: CurrencyViewMode) => void;
   };
 }
@@ -147,6 +149,25 @@ const INITIAL_STATE: ExpensesDashboardState = {
   loadStatus: { tone: 'loading', message: 'Loading dashboard…' },
 };
 
+export function upsertBudgetPeriodList(
+  periods: BudgetPeriodRecord[],
+  nextPeriod: BudgetPeriodRecord,
+): BudgetPeriodRecord[] {
+  const existingIndex = periods.findIndex((period) => period.id === nextPeriod.id);
+  const mergedPeriods =
+    existingIndex === -1
+      ? [...periods, nextPeriod]
+      : periods.map((period, index) => (index === existingIndex ? nextPeriod : period));
+
+  return mergedPeriods.sort((left, right) => {
+    if (left.month === right.month) {
+      return right.id - left.id;
+    }
+
+    return right.month.localeCompare(left.month);
+  });
+}
+
 function dashboardReducer(
   state: ExpensesDashboardState,
   action: ExpensesDashboardAction,
@@ -166,6 +187,11 @@ function dashboardReducer(
       return {
         ...state,
         loadStatus: { tone: 'error', message: action.message },
+      };
+    case 'dashboard/budget-period-upserted':
+      return {
+        ...state,
+        budgetPeriods: upsertBudgetPeriodList(state.budgetPeriods, action.period),
       };
     case 'dashboard/month-selected':
       return {
@@ -382,6 +408,10 @@ export function useExpensesDashboard(): UseExpensesDashboardResult {
     [handleReviewAction],
   );
 
+  const upsertBudgetPeriod = useCallback((period: BudgetPeriodRecord) => {
+    dispatch({ type: 'dashboard/budget-period-upserted', period });
+  }, []);
+
   const setViewMode = useCallback((mode: CurrencyViewMode) => {
     dispatch({ type: 'dashboard/view-mode-changed', viewMode: mode });
   }, []);
@@ -400,6 +430,7 @@ export function useExpensesDashboard(): UseExpensesDashboardResult {
       handleMonthChange,
       handleReviewAccept,
       handleReviewReject,
+      upsertBudgetPeriod,
       setViewMode,
     },
   };

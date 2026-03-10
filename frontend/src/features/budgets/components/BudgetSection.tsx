@@ -12,18 +12,18 @@ import { useBudgetEditor } from '../hooks/useBudgetEditor';
 interface BudgetSectionProps {
   activeMonth: string | null;
   period: BudgetPeriodRecord | null;
-  onRefreshDashboard: () => Promise<void>;
+  onBudgetPeriodChanged: (period: BudgetPeriodRecord) => void;
 }
 
 export function BudgetSection({
   activeMonth,
   period,
-  onRefreshDashboard,
+  onBudgetPeriodChanged,
 }: BudgetSectionProps) {
   const budgetEditor = useBudgetEditor({
     activeMonth,
     period,
-    onRefreshDashboard,
+    onBudgetPeriodChanged,
   });
 
   if (!activeMonth) {

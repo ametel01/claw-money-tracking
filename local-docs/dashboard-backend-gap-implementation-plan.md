@@ -202,6 +202,8 @@ Failure modes:
 
 ### Step 1.2: Decide how to source the active period after mutation
 
+**COMPLETED**
+
 Files:
 
 - `frontend/src/features/budgets/hooks/useBudgetEditor.ts`

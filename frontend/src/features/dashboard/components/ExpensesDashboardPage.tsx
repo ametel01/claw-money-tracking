@@ -120,7 +120,7 @@ export function ExpensesDashboardPage({
           <BudgetSection
             activeMonth={activeMonth}
             period={activeBudgetPeriod}
-            onRefreshDashboard={actions.refreshDashboard}
+            onBudgetPeriodChanged={actions.upsertBudgetPeriod}
           />
         </DashboardSection>
 
