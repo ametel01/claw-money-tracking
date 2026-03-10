@@ -224,6 +224,19 @@ test('categorization rule routes list and disable active rules', async (t) => {
   assert.equal(createdRule.active, true)
   assert.equal(createdRule.categoryName, 'Shopping')
 
+  const listedTransactions = await requestJson<
+    Array<{
+      id: number
+      category_id: number | null
+      category_name: string | null
+    }>
+  >(`${baseUrl}/api/expenses/transactions?limit=50000`)
+  const categorizedTransaction = listedTransactions.find((transaction) => transaction.id === transactionId)
+  assert.ok(categorizedTransaction)
+  assert.equal(categorizedTransaction?.id, transactionId)
+  assert.equal(categorizedTransaction?.category_id, shoppingCategoryId)
+  assert.equal(categorizedTransaction?.category_name, 'Shopping')
+
   const listedRules = await requestJson<Array<{ id: number; active: boolean }>>(
     `${baseUrl}/api/expenses/categorization-rules`
   )

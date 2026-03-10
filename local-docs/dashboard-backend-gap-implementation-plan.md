@@ -228,6 +228,8 @@ Failure modes:
 
 ### Step 2.1: Add transaction-level category actions
 
+**COMPLETED**
+
 Files:
 
 - `frontend/src/components/TransactionList.tsx`

@@ -150,6 +150,7 @@ export function ExpensesDashboardPage({
             transactions={transactions}
             activeMonth={activeMonth}
             viewMode={viewMode}
+            onRuleCreated={actions.refreshDashboard}
           />
         </DashboardSection>
       </main>

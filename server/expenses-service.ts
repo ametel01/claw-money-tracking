@@ -188,6 +188,7 @@ interface TransactionRow {
   fx_rate_used: number | null
   account_name: string | null
   account_currency: string | null
+  category_id: number | null
   category_name: string | null
   category_kind: string | null
 }
@@ -516,6 +517,7 @@ export class ExpensesService {
             t.fx_rate_used,
             a.name AS account_name,
             a.currency AS account_currency,
+            t.category_id,
             c.name AS category_name,
             COALESCE(c.kind, 'expense') AS category_kind
           FROM exp_transactions AS t
@@ -551,6 +553,7 @@ export class ExpensesService {
             t.fx_rate_used,
             a.name AS account_name,
             a.currency AS account_currency,
+            t.category_id,
             c.name AS category_name,
             COALESCE(c.kind, 'expense') AS category_kind
           FROM exp_transactions AS t

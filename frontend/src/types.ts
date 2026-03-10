@@ -18,6 +18,7 @@ export interface TransactionRecord {
   fx_rate_used: number | null;
   account_name: string | null;
   account_currency: string | null;
+  category_id: number | null;
   category_name: string | null;
   category_kind: string | null;
 }
