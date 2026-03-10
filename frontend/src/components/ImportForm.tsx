@@ -14,6 +14,7 @@ type Status = { tone: 'idle' | 'pending' | 'success' | 'error'; message: string 
 
 export function ImportForm({ onImported, latestBatchSummary }: ImportFormProps) {
   const [status, setStatus] = useState<Status>({ tone: 'idle', message: '' });
+  const [selectedFileName, setSelectedFileName] = useState('');
   const formRef = useRef<HTMLFormElement>(null);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -34,6 +35,7 @@ export function ImportForm({ onImported, latestBatchSummary }: ImportFormProps) 
       if (!response.ok) throw new Error(response.error || 'Import failed');
 
       formRef.current?.reset();
+      setSelectedFileName('');
       await onImported();
       setStatus({
         tone: 'success',
@@ -68,13 +70,38 @@ export function ImportForm({ onImported, latestBatchSummary }: ImportFormProps) 
         >
           Statement PDF
         </Label>
-        <Input id="pdfFile" name="pdfFile" type="file" accept="application/pdf" required />
+        <div className="grid gap-2">
+          <Input
+            id="pdfFile"
+            name="pdfFile"
+            type="file"
+            accept="application/pdf"
+            required
+            className="sr-only"
+            onChange={(event) => {
+              setSelectedFileName(event.target.files?.[0]?.name ?? '');
+            }}
+          />
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <Label
+              htmlFor="pdfFile"
+              className="inline-flex h-8 w-full cursor-pointer items-center justify-center rounded-lg border border-border bg-background px-2.5 text-sm font-medium text-foreground transition-colors hover:bg-muted sm:w-fit"
+            >
+              Choose PDF
+            </Label>
+            <p className="min-w-0 text-xs leading-relaxed text-muted-foreground break-all">
+              {selectedFileName || 'No file chosen'}
+            </p>
+          </div>
+        </div>
       </div>
       <Button type="submit" disabled={status.tone === 'pending'} className="w-full">
         {status.tone === 'pending' ? 'Parsing…' : 'Upload and parse'}
       </Button>
       {latestBatchSummary ? (
-        <p className="text-[0.65rem] leading-relaxed text-muted-foreground">{latestBatchSummary}</p>
+        <p className="text-[0.65rem] leading-relaxed text-muted-foreground break-words">
+          {latestBatchSummary}
+        </p>
       ) : null}
       <StatusLine status={status} />
     </form>
