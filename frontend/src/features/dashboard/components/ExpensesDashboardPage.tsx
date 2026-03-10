@@ -128,7 +128,8 @@ export function ExpensesDashboardPage({
                 spanClassName="col-span-12 md:col-span-6"
                 cardClassName="h-full"
                 eyebrow="Allocation"
-                title="Category split"
+                title="Overall category split"
+                description="Distribution of total recorded spending across all imported months and years."
               >
                 <CategoryPie segments={pieSegments} />
               </DashboardSection>

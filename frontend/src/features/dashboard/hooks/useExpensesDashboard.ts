@@ -95,7 +95,6 @@ type ExpensesDashboardStateUpdate = Pick<
 
 interface MonthDataBundle {
   transactions: TransactionRecord[];
-  pieSegments: PieSegment[];
   lineChartModel: LineChartModel;
   merchantLeaderboard: MerchantLeaderboardItem[];
 }
@@ -103,6 +102,7 @@ interface MonthDataBundle {
 interface BaseDashboardData {
   overview: OverviewResponse;
   months: MonthSummary[];
+  pieSegments: PieSegment[];
   cashFlow: CashFlowPoint[];
   latestImportBatchId: number | null;
   budgetPeriods: BudgetPeriodRecord[];
@@ -228,35 +228,36 @@ function dashboardReducer(
 }
 
 async function loadMonthData(month: string | null): Promise<MonthDataBundle> {
-  const [transactions, breakdown, lineChartModel, merchantLeaderboard] = await Promise.all([
+  const [transactions, lineChartModel, merchantLeaderboard] = await Promise.all([
     getTransactions(TRANSACTION_PAGE_SIZE, month),
-    getCategoryBreakdown(month ?? undefined),
     getSpendingPaceModel(month),
     getMerchantLeaderboard(month ?? undefined),
   ]);
 
   return {
     transactions,
-    pieSegments: categoryBreakdownToPieSegments(breakdown),
     lineChartModel,
     merchantLeaderboard,
   };
 }
 
 async function loadBaseDashboardData(): Promise<BaseDashboardData> {
-  const [overview, monthlySummary, cashFlow, latestBatches, budgetPeriods] = await Promise.all([
+  const [overview, monthlySummary, breakdown, cashFlow, latestBatches, budgetPeriods] =
+    await Promise.all([
     getOverview(),
     getMonthlyAnalyticsSummary(),
+    getCategoryBreakdown(),
     getCashFlow(),
     getImportBatches(1),
     getBudgetPeriods(),
-  ]);
+    ]);
 
   const months = ensureMonthSummary(monthlySummaryToMonthTabs(monthlySummary), currentMonthKey());
 
   return {
     overview,
     months,
+    pieSegments: categoryBreakdownToPieSegments(breakdown),
     cashFlow,
     latestImportBatchId: latestBatches[0]?.id ?? null,
     budgetPeriods,
@@ -303,7 +304,7 @@ export function useExpensesDashboard(): UseExpensesDashboardResult {
           overview: baseData.overview,
           transactions: monthData.transactions,
           months: baseData.months,
-          pieSegments: monthData.pieSegments,
+          pieSegments: baseData.pieSegments,
           lineChartModel: monthData.lineChartModel,
           cashFlow: baseData.cashFlow,
           merchantLeaderboard: monthData.merchantLeaderboard,
@@ -351,7 +352,7 @@ export function useExpensesDashboard(): UseExpensesDashboardResult {
             overview: state.overview,
             transactions: monthData.transactions,
             months: state.months,
-            pieSegments: monthData.pieSegments,
+            pieSegments: state.pieSegments,
             lineChartModel: monthData.lineChartModel,
             cashFlow: state.cashFlow,
             merchantLeaderboard: monthData.merchantLeaderboard,
