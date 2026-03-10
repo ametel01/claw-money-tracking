@@ -5,9 +5,9 @@ import { KpiCards } from '@/components/KpiCards';
 import { LineChart } from '@/components/LineChart';
 import { MerchantLeaderboardCard } from '@/components/MerchantLeaderboardCard';
 import { MonthTabs } from '@/components/MonthTabs';
-import { TransactionList } from '@/components/TransactionList';
 import { BudgetSection } from '@/features/budgets/components/BudgetSection';
 import { CategorizationRulesSection } from '@/features/categorization/components/CategorizationRulesSection';
+import { TransactionCategorizationSection } from '@/features/categorization/components/TransactionCategorizationSection';
 import { useCategorizationRules } from '@/features/categorization/hooks/useCategorizationRules';
 import { FxManagementSection } from '@/features/fx/components/FxManagementSection';
 import { ImportReviewSection } from '@/features/imports/components/ImportReviewSection';
@@ -181,7 +181,7 @@ export function ExpensesDashboardPage({
           }
           contentClassName="flex flex-col gap-3"
         >
-          <TransactionList
+          <TransactionCategorizationSection
             transactions={transactions}
             activeMonth={activeMonth}
             viewMode={viewMode}

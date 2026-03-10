@@ -1,6 +1,3 @@
-import { Button } from '@/components/ui/button';
-import { TransactionCategorizationPanel } from '@/features/categorization/components/TransactionCategorizationPanel';
-import { useTransactionCategorization } from '@/features/categorization/hooks/useTransactionCategorization';
 import {
   formatTransactionAmount,
   getCategoryKind,
@@ -11,13 +8,14 @@ import {
 } from '@/lib/format';
 import { cn } from '@/lib/utils';
 import type { CurrencyViewMode, TransactionRecord } from '@/types';
-import { useState } from 'react';
+import type { ReactNode } from 'react';
 
 interface TransactionListProps {
   transactions: TransactionRecord[];
   activeMonth: string | null;
   viewMode: CurrencyViewMode;
-  onRuleCreated: () => Promise<void>;
+  renderActions?: (transaction: TransactionRecord) => ReactNode;
+  renderExpandedContent?: (transaction: TransactionRecord) => ReactNode;
 }
 
 function resolveAmountClass(row: TransactionRecord): string {
@@ -29,10 +27,9 @@ export function TransactionList({
   transactions,
   activeMonth,
   viewMode,
-  onRuleCreated,
+  renderActions,
+  renderExpandedContent,
 }: TransactionListProps) {
-  const [expandedTransactionId, setExpandedTransactionId] = useState<number | null>(null);
-  const categorization = useTransactionCategorization({ onRuleCreated });
   const visible = activeMonth
     ? transactions.filter((row) => monthKey(row.tx_date) === activeMonth)
     : transactions;
@@ -73,30 +70,11 @@ export function TransactionList({
               >
                 {formatTransactionAmount(row, viewMode)}
               </div>
-              <Button
-                type="button"
-                size="sm"
-                variant={expandedTransactionId === row.id ? 'secondary' : 'outline'}
-                onClick={() =>
-                  setExpandedTransactionId((currentId) => (currentId === row.id ? null : row.id))
-                }
-              >
-                {expandedTransactionId === row.id ? 'Hide rule' : 'Categorize'}
-              </Button>
+              {renderActions?.(row)}
             </div>
           </div>
 
-          {expandedTransactionId === row.id ? (
-            <TransactionCategorizationPanel
-              transaction={row}
-              categories={categorization.categories}
-              categoriesLoading={categorization.categoriesLoading}
-              creatingTransactionId={categorization.creatingTransactionId}
-              status={categorization.status}
-              onCreateRule={categorization.actions.createRule}
-              onClose={() => setExpandedTransactionId(null)}
-            />
-          ) : null}
+          {renderExpandedContent?.(row)}
         </article>
       ))}
     </div>

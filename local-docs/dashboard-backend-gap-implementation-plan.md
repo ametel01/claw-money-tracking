@@ -370,6 +370,8 @@ Failure modes:
 
 ### Step 5.1: Keep the new work behind focused feature boundaries
 
+**COMPLETED**
+
 Target structure:
 
 - `frontend/src/features/budgets/`
