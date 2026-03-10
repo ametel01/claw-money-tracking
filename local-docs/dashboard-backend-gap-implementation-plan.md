@@ -262,6 +262,8 @@ Failure modes:
 
 ### Step 2.2: Add a rules management section
 
+**COMPLETED**
+
 Files:
 
 - `frontend/src/features/categorization/components/CategorizationRulesSection.tsx`

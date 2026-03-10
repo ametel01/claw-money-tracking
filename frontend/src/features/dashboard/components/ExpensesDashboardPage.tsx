@@ -8,6 +8,8 @@ import { MonthTabs } from '@/components/MonthTabs';
 import { RecurringPreviewCard } from '@/components/RecurringPreviewCard';
 import { TransactionList } from '@/components/TransactionList';
 import { BudgetSection } from '@/features/budgets/components/BudgetSection';
+import { CategorizationRulesSection } from '@/features/categorization/components/CategorizationRulesSection';
+import { useCategorizationRules } from '@/features/categorization/hooks/useCategorizationRules';
 import { ImportReviewSection } from '@/features/imports/components/ImportReviewSection';
 import { ImportWorkflowSection } from '@/features/imports/components/ImportWorkflowSection';
 import { monthLabel } from '@/lib/format';
@@ -22,6 +24,7 @@ export function ExpensesDashboardPage({
   latestBatchSummary,
   actions,
 }: UseExpensesDashboardResult) {
+  const categorizationRules = useCategorizationRules();
   const {
     overview,
     transactions,
@@ -37,6 +40,12 @@ export function ExpensesDashboardPage({
     viewMode,
     loadStatus,
   } = state;
+  const handleRuleCreated = async () => {
+    await Promise.all([
+      actions.refreshDashboard(),
+      categorizationRules.actions.refreshRules(),
+    ]);
+  };
 
   return (
     <div className="mx-auto w-full max-w-[1320px] px-4 py-6 pb-16">
@@ -138,6 +147,22 @@ export function ExpensesDashboardPage({
         </DashboardSection>
 
         <DashboardSection
+          spanClassName="col-span-12 md:col-span-6"
+          cardClassName="h-full"
+          eyebrow="Rules"
+          title="Categorization rules"
+          description="Review active transaction-matching rules and disable any that should stop applying."
+        >
+          <CategorizationRulesSection
+            rules={categorizationRules.rules}
+            loading={categorizationRules.loading}
+            busyRuleId={categorizationRules.busyRuleId}
+            status={categorizationRules.status}
+            onDisableRule={categorizationRules.actions.disableRule}
+          />
+        </DashboardSection>
+
+        <DashboardSection
           spanClassName="col-span-12"
           eyebrow="Ledger"
           title="Recent transactions"
@@ -150,7 +175,7 @@ export function ExpensesDashboardPage({
             transactions={transactions}
             activeMonth={activeMonth}
             viewMode={viewMode}
-            onRuleCreated={actions.refreshDashboard}
+            onRuleCreated={handleRuleCreated}
           />
         </DashboardSection>
       </main>
