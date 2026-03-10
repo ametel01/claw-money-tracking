@@ -10,6 +10,7 @@ import { TransactionList } from '@/components/TransactionList';
 import { BudgetSection } from '@/features/budgets/components/BudgetSection';
 import { CategorizationRulesSection } from '@/features/categorization/components/CategorizationRulesSection';
 import { useCategorizationRules } from '@/features/categorization/hooks/useCategorizationRules';
+import { FxManagementSection } from '@/features/fx/components/FxManagementSection';
 import { ImportReviewSection } from '@/features/imports/components/ImportReviewSection';
 import { ImportWorkflowSection } from '@/features/imports/components/ImportWorkflowSection';
 import { monthLabel } from '@/lib/format';
@@ -139,11 +140,17 @@ export function ExpensesDashboardPage({
           eyebrow="Display"
           title="Currency controls"
         >
-          <CurrencyControls
-            viewMode={viewMode}
-            onViewModeChange={actions.setViewMode}
-            onRateUpdated={actions.refreshDashboard}
-          />
+          <CurrencyControls viewMode={viewMode} onViewModeChange={actions.setViewMode} />
+        </DashboardSection>
+
+        <DashboardSection
+          spanClassName="col-span-12 md:col-span-6"
+          cardClassName="h-full border-t-2 border-t-border"
+          eyebrow="FX"
+          title="FX management"
+          description="Submit manual FX rates, review rate history, and run USD/PHP transaction backfills."
+        >
+          <FxManagementSection onFxUpdated={actions.refreshDashboard} />
         </DashboardSection>
 
         <DashboardSection

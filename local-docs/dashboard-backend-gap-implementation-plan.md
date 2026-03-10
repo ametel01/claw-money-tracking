@@ -299,6 +299,8 @@ Failure modes:
 
 ### Step 3.1: Extend currency controls into an FX management section
 
+**COMPLETED**
+
 Files:
 
 - `frontend/src/components/CurrencyControls.tsx` or a new `frontend/src/features/fx/components/FxManagementSection.tsx`
