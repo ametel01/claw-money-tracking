@@ -97,6 +97,12 @@ export interface CategorizationRuleRecord {
   createdAt: string;
 }
 
+export interface CategoryRecord {
+  id: number;
+  name: string;
+  kind: 'expense' | 'income' | 'transfer';
+}
+
 export interface MonthlyAnalyticsSummary {
   month: string;
   income: number;

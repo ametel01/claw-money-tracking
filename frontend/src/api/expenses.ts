@@ -4,6 +4,7 @@ import type {
   BudgetPeriodRecord,
   CashFlowPoint,
   CategorizationRuleRecord,
+  CategoryRecord,
   CategoryBreakdownItem,
   ImportBatchDetail,
   ImportBatchSummary,
@@ -49,6 +50,10 @@ async function requestJson<T>(input: string, init?: RequestInit): Promise<T> {
 
 export function getOverview(): Promise<OverviewResponse> {
   return requestJson<OverviewResponse>('/api/expenses/overview');
+}
+
+export function getCategories(): Promise<CategoryRecord[]> {
+  return requestJson<CategoryRecord[]>('/api/expenses/categories');
 }
 
 export function getTransactions(limit = 400, month?: string | null): Promise<TransactionRecord[]> {

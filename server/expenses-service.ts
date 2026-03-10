@@ -105,6 +105,12 @@ export interface CategorizationRuleRecord {
   createdAt: string
 }
 
+export interface CategoryRecord {
+  id: number
+  name: string
+  kind: 'expense' | 'income' | 'transfer'
+}
+
 export interface MonthlyAnalyticsSummary {
   month: string
   income: number
@@ -254,6 +260,12 @@ interface CategorizationRuleRow {
   account_name: string | null
   active: number
   created_at: string
+}
+
+interface CategoryRow {
+  id: number
+  name: string
+  kind: 'expense' | 'income' | 'transfer'
 }
 
 interface BudgetPeriodRow {
@@ -568,6 +580,36 @@ export class ExpensesService {
           `
           )
           .all(limit) as FxRateRow[]
+    )
+  }
+
+  listCategories(): CategoryRecord[] {
+    this.ensureSchema()
+
+    return this.withDatabase((db) =>
+      (
+        db
+          .prepare(
+            `
+            SELECT id, name, kind
+            FROM exp_categories
+            ORDER BY
+              CASE kind
+                WHEN 'expense' THEN 1
+                WHEN 'income' THEN 2
+                WHEN 'transfer' THEN 3
+                ELSE 4
+              END,
+              name COLLATE NOCASE ASC,
+              id ASC
+            `
+          )
+          .all() as CategoryRow[]
+      ).map((row) => ({
+        id: row.id,
+        name: row.name,
+        kind: row.kind,
+      }))
     )
   }
 

@@ -41,6 +41,13 @@ export function createExpensesApp(service: ExpensesService) {
   );
 
   app.get(
+    '/api/expenses/categories',
+    asyncHandler(async (_request, response) => {
+      response.json(service.listCategories());
+    }),
+  );
+
+  app.get(
     '/api/expenses/transactions',
     asyncHandler(async (request, response) => {
       const limit = safeInt(request.query.limit, 50, 1, 50000)
