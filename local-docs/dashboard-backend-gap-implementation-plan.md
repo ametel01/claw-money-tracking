@@ -161,6 +161,8 @@ Failure modes:
 
 ### Step 1.1: Build a budget editor feature instead of extending the read-only card
 
+**COMPLETED**
+
 Files:
 
 - `frontend/src/features/budgets/components/BudgetSection.tsx`

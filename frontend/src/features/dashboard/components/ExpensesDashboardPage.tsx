@@ -1,4 +1,3 @@
-import { BudgetProgressCard } from '@/components/BudgetProgressCard';
 import { CashFlowCard } from '@/components/CashFlowCard';
 import { CategoryPie } from '@/components/CategoryPie';
 import { CurrencyControls } from '@/components/CurrencyControls';
@@ -8,6 +7,7 @@ import { MerchantLeaderboardCard } from '@/components/MerchantLeaderboardCard';
 import { MonthTabs } from '@/components/MonthTabs';
 import { RecurringPreviewCard } from '@/components/RecurringPreviewCard';
 import { TransactionList } from '@/components/TransactionList';
+import { BudgetSection } from '@/features/budgets/components/BudgetSection';
 import { ImportReviewSection } from '@/features/imports/components/ImportReviewSection';
 import { ImportWorkflowSection } from '@/features/imports/components/ImportWorkflowSection';
 import { monthLabel } from '@/lib/format';
@@ -117,7 +117,11 @@ export function ExpensesDashboardPage({
         />
 
         <DashboardSection spanClassName="col-span-12" eyebrow="Budget" title="Budget vs actual">
-          <BudgetProgressCard period={activeBudgetPeriod} />
+          <BudgetSection
+            activeMonth={activeMonth}
+            period={activeBudgetPeriod}
+            onRefreshDashboard={actions.refreshDashboard}
+          />
         </DashboardSection>
 
         <DashboardSection
