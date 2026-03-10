@@ -7,7 +7,7 @@ Standalone money tracking dashboard repository, now fully backed by Node.js and 
 ```bash
 bun install
 bun run db:init
-PORT=8081 bun run dev
+PORT=9081 bun run dev
 ```
 
 For a production-style run:
