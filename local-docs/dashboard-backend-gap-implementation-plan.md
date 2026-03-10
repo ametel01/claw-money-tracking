@@ -336,6 +336,8 @@ Failure modes:
 
 ### Step 4.1: Remove recompute from general dashboard refresh
 
+**COMPLETED**
+
 Files:
 
 - `frontend/src/features/dashboard/hooks/useExpensesDashboard.ts`

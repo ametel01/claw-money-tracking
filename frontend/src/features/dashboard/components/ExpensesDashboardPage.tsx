@@ -5,7 +5,6 @@ import { KpiCards } from '@/components/KpiCards';
 import { LineChart } from '@/components/LineChart';
 import { MerchantLeaderboardCard } from '@/components/MerchantLeaderboardCard';
 import { MonthTabs } from '@/components/MonthTabs';
-import { RecurringPreviewCard } from '@/components/RecurringPreviewCard';
 import { TransactionList } from '@/components/TransactionList';
 import { BudgetSection } from '@/features/budgets/components/BudgetSection';
 import { CategorizationRulesSection } from '@/features/categorization/components/CategorizationRulesSection';
@@ -13,6 +12,7 @@ import { useCategorizationRules } from '@/features/categorization/hooks/useCateg
 import { FxManagementSection } from '@/features/fx/components/FxManagementSection';
 import { ImportReviewSection } from '@/features/imports/components/ImportReviewSection';
 import { ImportWorkflowSection } from '@/features/imports/components/ImportWorkflowSection';
+import { RecurringSection } from '@/features/recurring/components/RecurringSection';
 import { monthLabel } from '@/lib/format';
 import type { UseExpensesDashboardResult } from '../hooks/useExpensesDashboard';
 import { DashboardHeader } from './DashboardHeader';
@@ -116,7 +116,10 @@ export function ExpensesDashboardPage({
           eyebrow="Recurring"
           title="Recurring charges preview"
         >
-          <RecurringPreviewCard insights={recurringInsights} />
+          <RecurringSection
+            insights={recurringInsights}
+            onInsightsReload={actions.refreshRecurringInsights}
+          />
         </DashboardSection>
 
         <ImportReviewSection

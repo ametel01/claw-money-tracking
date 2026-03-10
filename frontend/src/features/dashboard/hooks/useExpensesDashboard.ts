@@ -11,7 +11,6 @@ import {
   getRecurringInsights,
   getSpendingPaceModel,
   getTransactions,
-  recomputeRecurringSeries,
   rejectImportRow,
   toErrorMessage,
 } from '@/api/expenses';
@@ -112,6 +111,7 @@ type ExpensesDashboardAction =
   | { type: 'dashboard/load-succeeded'; payload: ExpensesDashboardStateUpdate }
   | { type: 'dashboard/load-failed'; message: string }
   | { type: 'dashboard/budget-period-upserted'; period: BudgetPeriodRecord }
+  | { type: 'dashboard/recurring-insights-updated'; recurringInsights: RecurringInsights | null }
   | { type: 'dashboard/month-selected'; month: string }
   | { type: 'dashboard/review-started'; rowId: number }
   | { type: 'dashboard/review-finished' }
@@ -128,6 +128,7 @@ export interface UseExpensesDashboardResult {
     handleReviewAccept: (rowId: number) => Promise<void>;
     handleReviewReject: (rowId: number) => Promise<void>;
     upsertBudgetPeriod: (period: BudgetPeriodRecord) => void;
+    refreshRecurringInsights: () => Promise<void>;
     setViewMode: (mode: CurrencyViewMode) => void;
   };
 }
@@ -192,6 +193,11 @@ function dashboardReducer(
       return {
         ...state,
         budgetPeriods: upsertBudgetPeriodList(state.budgetPeriods, action.period),
+      };
+    case 'dashboard/recurring-insights-updated':
+      return {
+        ...state,
+        recurringInsights: action.recurringInsights,
       };
     case 'dashboard/month-selected':
       return {
@@ -261,11 +267,6 @@ async function loadLatestImportBatch(batchId: number | null): Promise<ImportBatc
   return getImportBatch(batchId);
 }
 
-async function refreshRecurringData(month: string | null): Promise<RecurringInsights> {
-  await recomputeRecurringSeries();
-  return getRecurringInsights(month ?? undefined);
-}
-
 export function useExpensesDashboard(): UseExpensesDashboardResult {
   const activeMonthRef = useRef<string | null>(null);
   const requestIdRef = useRef(0);
@@ -284,7 +285,7 @@ export function useExpensesDashboard(): UseExpensesDashboardResult {
       const [monthData, latestImportBatch, recurringInsights] = await Promise.all([
         loadMonthData(selectedMonth),
         loadLatestImportBatch(baseData.latestImportBatchId),
-        refreshRecurringData(selectedMonth),
+        getRecurringInsights(selectedMonth ?? undefined),
       ]);
 
       if (requestId !== requestIdRef.current) {
@@ -412,6 +413,14 @@ export function useExpensesDashboard(): UseExpensesDashboardResult {
     dispatch({ type: 'dashboard/budget-period-upserted', period });
   }, []);
 
+  const refreshRecurringInsights = useCallback(async () => {
+    const recurringInsights = await getRecurringInsights(activeMonthRef.current ?? undefined);
+    dispatch({
+      type: 'dashboard/recurring-insights-updated',
+      recurringInsights,
+    });
+  }, []);
+
   const setViewMode = useCallback((mode: CurrencyViewMode) => {
     dispatch({ type: 'dashboard/view-mode-changed', viewMode: mode });
   }, []);
@@ -431,6 +440,7 @@ export function useExpensesDashboard(): UseExpensesDashboardResult {
       handleReviewAccept,
       handleReviewReject,
       upsertBudgetPeriod,
+      refreshRecurringInsights,
       setViewMode,
     },
   };
