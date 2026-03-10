@@ -136,6 +136,8 @@ Failure modes:
 
 ### Step 0.2: Add frontend types for FX history
 
+**COMPLETED**
+
 Files:
 
 - `frontend/src/types.ts`

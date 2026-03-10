@@ -173,6 +173,14 @@ export interface BackfillFxResponse extends ApiStatusResponse {
   updated?: number;
 }
 
+export interface FxRateRecord {
+  base_currency: string;
+  quote_currency: string;
+  rate_date: string;
+  rate: number;
+  provider: string;
+}
+
 export interface MonthSummary {
   key: string;
   label: string;

@@ -6,6 +6,7 @@ import type {
   CategorizationRuleRecord,
   CategoryRecord,
   CategoryBreakdownItem,
+  FxRateRecord,
   ImportBatchDetail,
   ImportBatchSummary,
   ImportPdfResponse,
@@ -50,6 +51,10 @@ async function requestJson<T>(input: string, init?: RequestInit): Promise<T> {
 
 export function getOverview(): Promise<OverviewResponse> {
   return requestJson<OverviewResponse>('/api/expenses/overview');
+}
+
+export function getFxRates(): Promise<FxRateRecord[]> {
+  return requestJson<FxRateRecord[]>('/api/expenses/fx');
 }
 
 export function getCategories(): Promise<CategoryRecord[]> {
@@ -176,16 +181,25 @@ export function getRecurringInsights(month?: string): Promise<RecurringInsights>
 }
 
 export function updateUsdPhpRate(rate: number): Promise<ApiStatusResponse> {
+  return upsertFxRate({
+    base: 'USD',
+    quote: 'PHP',
+    rate,
+  });
+}
+
+export function upsertFxRate(input: {
+  base: string;
+  quote: string;
+  rate: number;
+  date?: string;
+}): Promise<ApiStatusResponse> {
   return requestJson<ApiStatusResponse>('/api/expenses/fx-rate', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      base: 'USD',
-      quote: 'PHP',
-      rate,
-    }),
+    body: JSON.stringify(input),
   });
 }
 
