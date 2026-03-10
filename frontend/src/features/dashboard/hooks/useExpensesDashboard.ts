@@ -15,6 +15,7 @@ import {
   toErrorMessage,
 } from '@/api/expenses';
 import { categoryBreakdownToPieSegments, monthlySummaryToMonthTabs } from '@/lib/analytics';
+import { currentMonthKey } from '@/lib/format';
 import type {
   BudgetPeriodRecord,
   CashFlowPoint,
@@ -30,6 +31,7 @@ import type {
 } from '@/types';
 import { useCallback, useEffect, useReducer, useRef } from 'react';
 import {
+  ensureMonthSummary,
   resolveSelectedMonth,
   selectActiveBudgetPeriod,
   selectLatestBatchSummary,
@@ -250,9 +252,11 @@ async function loadBaseDashboardData(): Promise<BaseDashboardData> {
     getBudgetPeriods(),
   ]);
 
+  const months = ensureMonthSummary(monthlySummaryToMonthTabs(monthlySummary), currentMonthKey());
+
   return {
     overview,
-    months: monthlySummaryToMonthTabs(monthlySummary),
+    months,
     cashFlow,
     latestImportBatchId: latestBatches[0]?.id ?? null,
     budgetPeriods,

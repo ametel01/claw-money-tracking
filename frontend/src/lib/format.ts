@@ -6,6 +6,12 @@ export function monthKey(dateValue: string | null | undefined): string {
   return String(dateValue ?? '').slice(0, 7);
 }
 
+export function currentMonthKey(date = new Date()): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  return `${year}-${month}`;
+}
+
 export function monthLabel(monthValue: string): string {
   const [yearRaw, monthRaw] = monthValue.split('-');
   const year = Number(yearRaw);
